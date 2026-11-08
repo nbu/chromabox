@@ -1,0 +1,17 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3" y="3" width="34" height="34" rx="9" fill="url(#chromabox_gradient)"/>
+    <g stroke="#FFFFFF" stroke-width="3.4" stroke-linecap="round">
+        <path d="M17.5 10.5L15 29.5"/>
+        <path d="M26 10.5L23.5 29.5"/>
+        <path d="M11 16.5H30"/>
+        <path d="M10 23.5H29"/>
+    </g>
+    <defs>
+        <linearGradient id="chromabox_gradient" x1="3" y1="3" x2="37" y2="37" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#FF4D8D"/>
+            <stop offset="0.45" stop-color="#FF8A3D"/>
+            <stop offset="0.75" stop-color="#7C5CFF"/>
+            <stop offset="1" stop-color="#3D7BFF"/>
+        </linearGradient>
+    </defs>
+</svg>

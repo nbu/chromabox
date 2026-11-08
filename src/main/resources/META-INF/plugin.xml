@@ -1,0 +1,46 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <id>com.bnsoft.chromabox</id>
+    <name>Chromabox</name>
+    <vendor>bnsoft</vendor>
+
+    <description><![CDATA[
+        Renders hex colors (<code>#RGB</code>, <code>#RGBA</code>, <code>#RRGGBB</code>, <code>#RRGGBBAA</code>)
+        as color swatches in any text file, such as Markdown or CSV.<br>
+        Click a swatch to pick a new color; the hex value in the file is updated.<br>
+        Display modes: swatch only, swatch with hex, or off (<em>View | Chromabox</em> or
+        <em>Settings | Tools | Chromabox</em>).<br>
+        CSS-like files are skipped by default, because the IDE already shows color swatches there.
+        ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <resource-bundle>messages.ChromaboxBundle</resource-bundle>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
+        <editorFactoryListener implementation="com.bnsoft.chromabox.ChromaboxEditorFactoryListener"/>
+        <applicationConfigurable parentId="tools"
+                                 id="com.bnsoft.chromabox.settings"
+                                 instance="com.bnsoft.chromabox.ChromaboxConfigurable"
+                                 bundle="messages.ChromaboxBundle"
+                                 key="settings.title"/>
+    </extensions>
+
+    <applicationListeners>
+        <listener class="com.bnsoft.chromabox.ChromaboxDynamicPluginListener"
+                  topic="com.intellij.ide.plugins.DynamicPluginListener"/>
+    </applicationListeners>
+
+    <actions>
+        <group id="Chromabox.DisplayMode" popup="true">
+            <action id="Chromabox.Mode.BoxOnly" class="com.bnsoft.chromabox.BoxOnlyModeAction"/>
+            <action id="Chromabox.Mode.BoxWithHex" class="com.bnsoft.chromabox.BoxWithHexModeAction"/>
+            <action id="Chromabox.Mode.Off" class="com.bnsoft.chromabox.OffModeAction"/>
+            <separator/>
+            <action id="Chromabox.CycleMode" class="com.bnsoft.chromabox.CycleDisplayModeAction"/>
+            <add-to-group group-id="ViewMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </group>
+    </actions>
+</idea-plugin>
