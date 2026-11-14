@@ -1,6 +1,12 @@
 package com.bnsoft.chromabox.engine
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.AnActionResult
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.ex.AnActionListener
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
@@ -55,6 +61,9 @@ class EditorLensController private constructor(private val editor: Editor, priva
     /** Text inserted since the last applied scan; a literal created there is being typed, so it isn't folded yet. */
     private val edited = mutableListOf<RangeMarker>()
 
+    /** True while an Expand action runs in this editor: folds it expands were expanded by the user. */
+    private var userExpanding = false
+
     init {
         editor.document.addDocumentListener(object : DocumentListener {
             override fun beforeDocumentChange(event: DocumentEvent) {
@@ -68,7 +77,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
                 ApplicationManager.getApplication().invokeLater({
                     val folds = touched.filter { it.isValid && !it.isExpanded }
                     if (folds.isNotEmpty()) {
-                        editor.foldingModel.runBatchFoldingOperation({ folds.forEach { it.isExpanded = true } }, false, false)
+                        editor.foldingModel.runBatchFoldingOperation({ folds.forEach(::show) }, false, false)
                     }
                 }, { editor.isDisposed })
             }
@@ -101,12 +110,30 @@ class EditorLensController private constructor(private val editor: Editor, priva
             }
         }, this)
         (editor.foldingModel as? FoldingModelEx)?.addListener(object : FoldingListener {
-            // The IDE restores saved folds in a batch of its own, possibly after the first scan.
+            override fun onFoldRegionStateChange(region: FoldRegion) {
+                if (userExpanding && region.isExpanded && region.getUserData(LENS_FOLD) == true) region.putUserData(SHOWN, true)
+            }
+
+            // The IDE restores saved folds in a batch of its own, possibly after the first scan, and unfolds the
+            // caret's line when navigating to a file.
             override fun onFoldProcessingEnd() {
-                if (orphanFolds().isEmpty()) return
-                ApplicationManager.getApplication().invokeLater({ removeOrphanFolds() }, { editor.isDisposed })
+                if (orphanFolds().isEmpty() && foldsToCollapse().isEmpty()) return
+                ApplicationManager.getApplication().invokeLater({
+                    removeOrphanFolds()
+                    updateFoldExpansion()
+                }, { editor.isDisposed })
             }
         }, this)
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(AnActionListener.TOPIC, object : AnActionListener {
+            override fun beforeActionPerformed(action: AnAction, event: AnActionEvent) {
+                userExpanding = ActionManager.getInstance().getId(action)?.startsWith("Expand") == true &&
+                    event.getData(CommonDataKeys.EDITOR) == editor
+            }
+
+            override fun afterActionPerformed(action: AnAction, event: AnActionEvent, result: AnActionResult) {
+                userExpanding = false
+            }
+        })
         host.subscribe(this) {
             clear()
             scheduleRefresh(0)
@@ -242,21 +269,43 @@ class EditorLensController private constructor(private val editor: Editor, priva
         fold.putUserData(LENS_FOLD, true)
         // Only a literal being typed starts unfolded; one the caret merely touches (a file opened with the caret next
         // to it, a mode switch) starts folded, like it would be after the caret stepped over it.
-        fold.isExpanded = isCaretNear(range) && edited.any { it.isValid && it.textRange.intersects(range) }
+        if (isCaretNear(range) && edited.any { it.isValid && it.textRange.intersects(range) }) show(fold) else fold.isExpanded = false
         return fold
+    }
+
+    private fun show(fold: FoldRegion) {
+        fold.isExpanded = true
+        fold.putUserData(SHOWN, true)
     }
 
     /**
      * In inlay-only mode, folds a literal again once no caret touches it. Never unfolds one: the caret steps over a
-     * folded literal like over one character, and its text shows only if the user expands the fold (Expand, ⌘+).
+     * folded literal like over one character, and its text shows only while it's typed or edited, or if the user
+     * expands the fold (Expand, ⌘+).
      */
     private fun updateFoldExpansion() {
-        val changed = elements.mapNotNull { it.fold }
-            .filter { it.isValid && it.isExpanded && !isCaretNear(it.textRange) }
+        val changed = foldsToCollapse()
         if (changed.isEmpty()) return
         editor.foldingModel.runBatchFoldingOperation({
-            changed.forEach { it.isExpanded = false }
+            changed.forEach {
+                it.isExpanded = false
+                it.putUserData(SHOWN, null)
+            }
         }, false, false)
+    }
+
+    /**
+     * Expanded folds that should be collapsed. One the engine or the user expanded stays expanded while a caret
+     * touches it. Anything else that expands folds, such as navigation unfolding the caret's line, only shows a
+     * literal while a caret or selection is inside it.
+     */
+    private fun foldsToCollapse() = elements.mapNotNull { it.fold }.filter { fold ->
+        fold.isValid && fold.isExpanded && !(if (fold.getUserData(SHOWN) == true) isCaretNear(fold.textRange) else isCaretInside(fold.textRange))
+    }
+
+    private fun isCaretInside(range: TextRange) = editor.caretModel.allCarets.any {
+        it.offset > range.startOffset && it.offset < range.endOffset ||
+            it.hasSelection() && TextRange(it.selectionStart, it.selectionEnd).intersectsStrict(range)
     }
 
     private fun isCaretNear(range: TextRange) =
@@ -366,6 +415,9 @@ class EditorLensController private constructor(private val editor: Editor, priva
 
         /** Marks fold regions created by the engine, so they're never mistaken for language folds. */
         val LENS_FOLD = Key.create<Boolean>("chromabox.lens.fold")
+
+        /** Marks lens folds that the engine or the user expanded; see [foldsToCollapse]. */
+        private val SHOWN = Key.create<Boolean>("chromabox.lens.fold.shown")
 
         fun getOrCreate(editor: Editor, host: LensHost): EditorLensController {
             editor.getUserData(CONTROLLER)?.let { return it }

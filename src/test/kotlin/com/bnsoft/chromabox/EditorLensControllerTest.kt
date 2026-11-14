@@ -5,6 +5,7 @@ import com.bnsoft.chromabox.engine.EditorLensController
 import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.util.TextRange
 import com.intellij.testFramework.PlatformTestUtil
@@ -150,6 +151,25 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         myFixture.performEditorAction(IdeActions.ACTION_EDITOR_MOVE_CARET_LEFT)
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
         assertEquals(listOf(TextRange(2, 9), TextRange(14, 21)), controller.foldedRanges)
+    }
+
+    fun `test box only folds back a color that navigation unfolds next to the caret`() {
+        val controller = controllerFor("a.md", "| a | #c8c8c8 |\n| b | #85664d |\n", DisplayMode.BOX_ONLY)
+        for (offset in listOf(22, 29)) {
+            OpenFileDescriptor(project, myFixture.file.virtualFile, offset).navigateIn(myFixture.editor)
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            assertEquals("caret at $offset", listOf(TextRange(6, 13), TextRange(22, 29)), controller.foldedRanges)
+        }
+    }
+
+    fun `test box only keeps a color the user expands`() {
+        val controller = controllerFor("a.md", "x #ff0000<caret> y", DisplayMode.BOX_ONLY)
+        myFixture.performEditorAction(IdeActions.ACTION_EXPAND_REGION)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEmpty(controller.foldedRanges)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_MOVE_LINE_END)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(listOf(TextRange(2, 9)), controller.foldedRanges)
     }
 
     fun `test switching to box only folds hex next to the caret`() {
