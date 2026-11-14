@@ -4,3 +4,6 @@
 .kotlin
 *.iml
 build
+
+# Local-only planning docs
+docs/spec/
