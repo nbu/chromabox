@@ -23,5 +23,7 @@
   case. Alpha is added in the same notation when the picked color has it.
 - Display modes: swatch only, swatch and color text, gutter icons, off (_View | Chromabox_ or the editor context
   menu). In gutter mode, a line's icon shows up to four colors; click it to pick one.
+- Contrast badges with the WCAG 2.2 ratio and level (`4.6:1 AA`) after colors that belong together: foreground and
+  background keys in one block, or two colors on one line. Shown always, only when failing, or never.
 - Colors the IDE already shows a swatch for, such as AWT colors in Java, don't get a second one. CSS-like file types
   are skipped by default; the list is editable in settings.

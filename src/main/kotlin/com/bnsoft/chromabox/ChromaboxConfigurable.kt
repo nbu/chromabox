@@ -65,6 +65,13 @@ class ChromaboxConfigurable : BoundConfigurable(ChromaboxBundle.message("setting
                 }
             }
         }
+        group(ChromaboxBundle.message("settings.contrast")) {
+            buttonsGroup {
+                row(ChromaboxBundle.message("settings.contrastBadges")) {
+                    for (badges in ContrastBadges.entries) radioButton(ChromaboxBundle.message("contrastBadges.${badges.name}"), badges)
+                }.comment(ChromaboxBundle.message("settings.contrastBadges.comment"))
+            }.bind(state::contrastBadges)
+        }
         row(ChromaboxBundle.message("settings.excludedFileTypes")) {
             textField()
                 .align(AlignX.FILL)

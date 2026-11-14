@@ -1,5 +1,7 @@
 package com.bnsoft.chromabox
 
+import java.lang.ref.WeakReference
+import java.util.concurrent.atomic.AtomicReference
 import com.bnsoft.chromabox.color.ChromaColor
 import com.bnsoft.chromabox.color.ColorSpaces
 import com.bnsoft.chromabox.color.Hsl
@@ -144,17 +146,30 @@ object CssColorFunctions {
     private const val EXACT_DECIMALS = 6
     private const val MAX_OVERSHOOT = 2.0
 
+    /** Functions in [functions] in [text], which must not change: the matches of the last text are reused. */
     fun findAll(text: CharSequence, functions: Set<CssColorFunction> = CssColorFunction.entries.toSet()): List<CssColorMatch> =
-        FUNCTION.findAllAt(text, functionStarts(text, functions)).mapNotNull { m ->
+        findAll(text).filter { it.format.function in functions }
+
+    // The CSS functions and CSS Color 4 lenses get the same text in one scan, so the second reuses the first's matches.
+    private val last = AtomicReference<Pair<WeakReference<CharSequence>, List<CssColorMatch>>?>()
+
+    private fun findAll(text: CharSequence): List<CssColorMatch> {
+        last.get()?.let { (previous, matches) -> if (previous.get() === text) return matches }
+        val matches = FUNCTION.findAllAt(text, functionStarts(text)).mapNotNull { m ->
             val (color, format) = parse(m.value) ?: return@mapNotNull null
-            if (format.function !in functions) return@mapNotNull null
             CssColorMatch(TextRange(m.range.first, m.range.last + 1), color, format)
         }.toList()
+        last.set(WeakReference(text) to matches)
+        return matches
+    }
 
-    /** Where a function in [functions] can start: the name before each `(`. */
-    private fun functionStarts(text: CharSequence, functions: Set<CssColorFunction>): Sequence<Int> {
-        val names = functions.flatMapTo(HashSet()) { if (it.colorSpace != null) setOf("color") else it.names }
-        val lengths = names.minOf { it.length }..names.maxOf { it.length }
+    private val NAMES = CssColorFunction.entries.flatMapTo(HashSet()) { if (it.colorSpace != null) setOf("color") else it.names }
+    private val NAME_LENGTHS = NAMES.minOf { it.length }..NAMES.maxOf { it.length }
+
+    /** Where a function can start: the name before each `(`. */
+    private fun functionStarts(text: CharSequence): Sequence<Int> {
+        val names = NAMES
+        val lengths = NAME_LENGTHS
         return text.offsetsOf('(').mapNotNull { paren ->
             val start = text.lettersStart(paren)
             start.takeIf { paren - start in lengths && text.substring(start, paren).lowercase() in names }

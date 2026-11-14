@@ -40,5 +40,11 @@ interface LensEditor<V : Any> {
     fun format(value: V, original: LensMatch<V>): String?
 }
 
+/**
+ * Something a host shows after the text at [offset], such as a contrast badge after a pair of colors. [key] is
+ * compared across scans: an annotation with the same offset and key keeps its inlay.
+ */
+data class LensAnnotation(val offset: Int, val key: Any, val renderer: EditorCustomElementRenderer)
+
 /** [project] is null for an editor outside a project. */
 data class LensContext(val fileType: FileType, val language: Language?, val document: Document, val project: Project? = null)

@@ -1,6 +1,7 @@
 package com.bnsoft.chromabox
 
 import com.bnsoft.chromabox.engine.Lens
+import com.bnsoft.chromabox.engine.LensAnnotation
 import com.bnsoft.chromabox.engine.LensContext
 import com.bnsoft.chromabox.engine.LensHost
 import com.bnsoft.chromabox.engine.LensPresentation
@@ -34,6 +35,9 @@ object ChromaboxHost : LensHost {
     override val lenses: List<Lens<*>> get() = registeredLenses.filter { settings.isLensEnabled(it.id) }
 
     override fun isExcluded(fileType: FileType): Boolean = settings.isExcluded(fileType)
+
+    override fun annotations(matches: List<ScannedMatch<*>>, context: LensContext): List<LensAnnotation> =
+        ContrastAnnotations.of(matches, context.document.immutableCharSequence, settings.state.contrastBadges)
 
     override fun withoutShownByIde(matches: List<ScannedMatch<*>>, context: LensContext): List<ScannedMatch<*>> {
         val shown = IdeColorSwatches.shownIn(context) ?: return matches

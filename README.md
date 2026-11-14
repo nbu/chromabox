@@ -34,6 +34,12 @@ Display modes (_View | Chromabox_, the editor context menu, or _Settings | Tools
   colors. Click it to pick a color, from a list if the line has several.
 - **Off**: plain text.
 
+Colors that belong together get a contrast badge with their WCAG 2.2 ratio and level, such as `4.6:1 AA`, after the
+second color: a foreground and background key in one block (`fg`/`bg`, `foreground`/`background`,
+`color`/`background-color`, `text`/`surface`, Material's `onPrimary`/`primary`), or exactly two colors on one line.
+A translucent foreground is blended over its background; a translucent background makes the ratio approximate
+(`~4.6:1`). Badges can be shown always, only when failing AA, or never.
+
 Each format can be turned on or off in _Settings | Tools | Chromabox | Formats_. Short hex forms (`#RGB`, `#RGBA`) can
 be turned off if hashtags like `#bad` or `#cafe` show up as colors, and float tuples can be limited to chosen file
 types. Colors the IDE already shows a swatch for, such as AWT colors in Java, don't get a second one. CSS-like file

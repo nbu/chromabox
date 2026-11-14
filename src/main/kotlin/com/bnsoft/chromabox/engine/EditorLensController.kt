@@ -67,6 +67,9 @@ class EditorLensController private constructor(private val editor: Editor, priva
     private class LineIcon(val highlighter: RangeHighlighter, val elements: List<Element<*>>)
 
     private val lineIcons = mutableListOf<LineIcon>()
+
+    /** Inlays of [LensHost.annotations], with their keys. */
+    private val annotations = mutableListOf<Pair<Inlay<*>, Any>>()
     private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
 
     /** Text inserted since the last applied scan; a literal created there is being typed, so it isn't folded yet. */
@@ -188,7 +191,12 @@ class EditorLensController private constructor(private val editor: Editor, priva
     }
 
     /** What one scan found, for the document as of [stamp]. Null [matches] means the editor shows nothing. */
-    private class Scan(val stamp: Long, val presentation: LensPresentation, val matches: List<ScannedMatch<*>>?)
+    private class Scan(
+        val stamp: Long,
+        val presentation: LensPresentation,
+        val matches: List<ScannedMatch<*>>?,
+        val annotations: List<LensAnnotation> = emptyList(),
+    )
 
     private fun scheduleRefresh(delayMillis: Int = REFRESH_DELAY_MS) {
         alarm.cancelAllRequests()
@@ -215,8 +223,9 @@ class EditorLensController private constructor(private val editor: Editor, priva
         val presentation = host.presentation
         val context = context()
         if (presentation == LensPresentation.OFF || context == null) return Scan(stamp, presentation, null)
-        val matches = LensScanner.scan(document.immutableCharSequence, context, host.lenses)
-        return Scan(stamp, presentation, host.withoutShownByIde(matches, context))
+        val matches = host.withoutShownByIde(LensScanner.scan(document.immutableCharSequence, context, host.lenses), context)
+        val annotations = if (presentation == LensPresentation.GUTTER) emptyList() else host.annotations(matches, context)
+        return Scan(stamp, presentation, matches, annotations)
     }
 
     /** Keeps the elements whose literal didn't change, and replaces the rest. */
@@ -229,6 +238,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
         try {
             applyMatches(scan)
             if (scan.presentation == LensPresentation.GUTTER) updateLineIcons()
+            applyAnnotations(scan.annotations)
         } finally {
             clearEdited()
         }
@@ -259,6 +269,23 @@ class EditorLensController private constructor(private val editor: Editor, priva
             editor.foldingModel.runBatchFoldingOperation({
                 created.forEach { it.fold = addFold(it.marker.textRange) }
             }, false, false)
+        }
+    }
+
+    /** Keeps the annotation inlays whose offset and key didn't change, and replaces the rest. */
+    private fun applyAnnotations(wanted: List<LensAnnotation>) {
+        val kept = HashSet<Pair<Int, Any>>()
+        val wantedKeys = wanted.mapTo(HashSet()) { it.offset to it.key }
+        val stale = annotations.filter { (inlay, key) ->
+            !(inlay.isValid && (inlay.offset to key).let { it in wantedKeys && kept.add(it) })
+        }
+        stale.forEach { it.first.dispose() }
+        annotations.removeAll(stale.toSet())
+        for (annotation in wanted) {
+            if ((annotation.offset to annotation.key) in kept) continue
+            // After the text at the offset, and after a swatch that sits there in inlay-only mode.
+            val inlay = editor.inlayModel.addInlineElement(annotation.offset, true, ANNOTATION_PRIORITY, annotation.renderer) ?: continue
+            annotations += inlay to annotation.key
         }
     }
 
@@ -402,6 +429,8 @@ class EditorLensController private constructor(private val editor: Editor, priva
         if (editor.isDisposed) return
         lineIcons.forEach { it.highlighter.dispose() }
         lineIcons.clear()
+        annotations.forEach { it.first.dispose() }
+        annotations.clear()
         remove(elements.toList())
     }
 
@@ -479,6 +508,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
     }
 
     // Test hooks.
+    internal val annotationInlays: List<Inlay<*>> get() = annotations.map { it.first }.sortedBy { it.offset }
     internal val lineIconRenderers: List<LineGutterIcon>
         get() = lineIcons.sortedBy { it.highlighter.startOffset }.map { it.highlighter.gutterIconRenderer as LineGutterIcon }
     internal val matchRanges: List<TextRange> get() = elements.map { it.marker.textRange }.sortedBy { it.startOffset }
@@ -503,6 +533,9 @@ class EditorLensController private constructor(private val editor: Editor, priva
 
     companion object {
         private const val REFRESH_DELAY_MS = 200
+
+        // Inlays at one offset that relate to the text before it are shown in order of decreasing priority.
+        private const val ANNOTATION_PRIORITY = -1
         private val CONTROLLER = Key.create<EditorLensController>("chromabox.lens.controller")
 
         /** Marks fold regions created by the engine, so they're never mistaken for language folds. */

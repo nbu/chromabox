@@ -288,6 +288,56 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         assertEquals(listOf(DisplayMode.BOX_WITH_HEX, DisplayMode.GUTTER, DisplayMode.OFF, DisplayMode.BOX_ONLY), seen)
     }
 
+    private fun badges(controller: EditorLensController) = controller.annotationInlays.map {
+        it.offset to (it.renderer as ContrastBadgeRenderer).text
+    }
+
+    fun `test contrast badge after the second color of a pair`() {
+        val controller = controllerFor("a.md", "fg: #ffffff, bg: #000000\n#777777 on #ffffff\n#123\n", DisplayMode.BOX_WITH_HEX)
+        assertEquals(listOf(24 to "21:1 AAA", 43 to "4.4:1 AA Large"), badges(controller))
+    }
+
+    fun `test in swatch only mode the badge follows the swatch`() {
+        val controller = controllerFor("a.md", "x #ffffff #000000", DisplayMode.BOX_ONLY)
+        assertEquals(listOf(17 to "21:1 AAA"), badges(controller))
+        val renderers = myFixture.editor.inlayModel.getInlineElementsInRange(17, 17).map { it.renderer }
+        assertEquals(listOf(ColorSwatchRenderer::class.java, ContrastBadgeRenderer::class.java), renderers.map { it.javaClass })
+    }
+
+    fun `test badges follow edits and the setting`() {
+        val controller = controllerFor("a.md", "#ffffff #000000", DisplayMode.BOX_WITH_HEX)
+        val badge = controller.annotationInlays.single()
+        WriteCommandAction.runWriteCommandAction(project) { myFixture.editor.document.insertString(0, "x ") }
+        controller.refresh()
+        assertSame(badge, controller.annotationInlays.single())
+
+        WriteCommandAction.runWriteCommandAction(project) { myFixture.editor.document.replaceString(10, 17, "#777777") }
+        controller.refresh()
+        assertEquals(listOf(17 to "4.4:1 AA Large"), badges(controller))
+
+        val saved = settings.state.contrastBadges
+        try {
+            settings.state.contrastBadges = ContrastBadges.ONLY_FAILING
+            controller.refresh()
+            assertEquals(1, badges(controller).size)
+            WriteCommandAction.runWriteCommandAction(project) { myFixture.editor.document.replaceString(10, 17, "#000000") }
+            controller.refresh()
+            assertEmpty(badges(controller))
+            settings.state.contrastBadges = ContrastBadges.OFF
+            WriteCommandAction.runWriteCommandAction(project) { myFixture.editor.document.replaceString(10, 17, "#eeeeee") }
+            controller.refresh()
+            assertEmpty(badges(controller))
+        } finally {
+            settings.state.contrastBadges = saved
+        }
+    }
+
+    fun `test no badges in gutter mode`() {
+        val controller = controllerFor("a.md", "#ffffff #000000", DisplayMode.GUTTER)
+        assertEmpty(controller.annotationInlays)
+        assertEmpty(myFixture.editor.inlayModel.getInlineElementsInRange(0, 15))
+    }
+
     fun `test off removes swatches`() {
         val controller = controllerFor("a.md", "#ff0000", DisplayMode.BOX_WITH_HEX)
         assertEquals(1, controller.matchRanges.size)

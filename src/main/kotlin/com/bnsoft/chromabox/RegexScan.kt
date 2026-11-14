@@ -19,11 +19,15 @@ internal fun Regex.findAllAt(text: CharSequence, starts: Sequence<Int>): Sequenc
 internal fun CharSequence.offsetsOf(char: Char): Sequence<Int> = offsetsOf(char, char)
 
 /** Offsets of either character, ascending. */
-internal fun CharSequence.offsetsOf(a: Char, b: Char): Sequence<Int> = sequence {
-    for (i in 0 until length) {
-        val c = this@offsetsOf[i]
-        if (c == a || c == b) yield(i)
+internal fun CharSequence.offsetsOf(a: Char, b: Char): Sequence<Int> =
+    generateSequence(indexOf(a, b, 0)) { indexOf(a, b, it + 1) }.takeWhile { it >= 0 }
+
+private fun CharSequence.indexOf(a: Char, b: Char, from: Int): Int {
+    for (i in from until length) {
+        val c = this[i]
+        if (c == a || c == b) return i
     }
+    return -1
 }
 
 /** Offsets of [string] in this text, ascending. */
