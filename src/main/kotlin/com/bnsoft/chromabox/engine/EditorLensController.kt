@@ -189,6 +189,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
     /** Scans in a background read action and applies the result on the EDT. Newer requests replace pending ones. */
     internal fun refreshInBackground(): CancellablePromise<*> =
         ReadAction.nonBlocking<Scan?> { if (editor.isDisposed) null else scan() }
+            .let { action -> editor.project?.let(action::withDocumentsCommitted) ?: action }
             .coalesceBy(this)
             .expireWith(this)
             .finishOnUiThread(ModalityState.stateForComponent(editor.component)) { it?.let(::apply) }
@@ -205,7 +206,8 @@ class EditorLensController private constructor(private val editor: Editor, priva
         val presentation = host.presentation
         val context = context()
         if (presentation == LensPresentation.OFF || context == null) return Scan(stamp, presentation, null)
-        return Scan(stamp, presentation, LensScanner.scan(document.immutableCharSequence, context, host.lenses))
+        val matches = LensScanner.scan(document.immutableCharSequence, context, host.lenses)
+        return Scan(stamp, presentation, matches.filterNot { host.isShownByIde(it, context) })
     }
 
     /** Keeps the elements whose literal didn't change, and replaces the rest. */
@@ -272,7 +274,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
         if (document.textLength > host.maxDocumentLength) return null
         val file = FileDocumentManager.getInstance().getFile(document) ?: editor.virtualFile ?: return null
         if (host.isExcluded(file.fileType)) return null
-        return LensContext(file.fileType, (file.fileType as? LanguageFileType)?.language, document)
+        return LensContext(file.fileType, (file.fileType as? LanguageFileType)?.language, document, editor.project)
     }
 
     // A literal being typed stays visible until the caret leaves it, so it doesn't fold away mid-typing.
