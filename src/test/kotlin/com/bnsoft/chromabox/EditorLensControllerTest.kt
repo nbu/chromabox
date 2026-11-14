@@ -55,6 +55,13 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         assertEquals(listOf(TextRange(2, 9), TextRange(14, 21)), controller.foldedRanges)
     }
 
+    fun `test box only swatches stay visible next to folded hex`() {
+        controllerFor("a.md", "<caret>x\n| a | #d8d8da |\n#ae5519 y\n", DisplayMode.BOX_ONLY)
+        val inlays = myFixture.editor.inlayModel.getInlineElementsInRange(0, myFixture.editor.document.textLength)
+        assertEquals(2, inlays.size)
+        for (inlay in inlays) assertNotNull("inlay at ${inlay.offset} is hidden", inlay.bounds)
+    }
+
     fun `test box only keeps hex next to the caret unfolded`() {
         val controller = controllerFor("a.md", "x <caret>#ff0000 and #00ff00", DisplayMode.BOX_ONLY)
         assertEquals(listOf(TextRange(14, 21)), controller.foldedRanges)

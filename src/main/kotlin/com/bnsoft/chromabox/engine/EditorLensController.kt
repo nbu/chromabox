@@ -134,7 +134,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
         if (stale.isEmpty() && added.isEmpty()) return
 
         remove(stale)
-        val created = added.mapNotNull { createElement(it) }
+        val created = added.mapNotNull { createElement(it, presentation) }
         elements += created
         if (presentation == LensPresentation.INLAY_ONLY && created.isNotEmpty()) {
             editor.foldingModel.runBatchFoldingOperation({
@@ -143,10 +143,14 @@ class EditorLensController private constructor(private val editor: Editor, priva
         }
     }
 
-    private fun <V : Any> createElement(scanned: ScannedMatch<V>): Element<V>? {
+    private fun <V : Any> createElement(scanned: ScannedMatch<V>, presentation: LensPresentation): Element<V>? {
         val range = scanned.range
         val renderer = scanned.lens.renderer(scanned.match)
-        val inlay = editor.inlayModel.addInlineElement(range.startOffset, false, renderer) ?: return null
+        // A collapsed fold hides inlays at its start offset, whichever side they relate to, so when the literal is
+        // folded away the inlay goes at its end, attached to it so that typing right after it doesn't move it.
+        val folded = presentation == LensPresentation.INLAY_ONLY
+        val offset = if (folded) range.endOffset else range.startOffset
+        val inlay = editor.inlayModel.addInlineElement(offset, folded, renderer) ?: return null
         val document = editor.document
         return Element(scanned.lens, scanned.match, document.createRangeMarker(range), document.getText(range), inlay)
     }
