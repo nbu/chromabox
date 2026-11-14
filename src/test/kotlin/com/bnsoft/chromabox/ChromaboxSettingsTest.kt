@@ -27,6 +27,23 @@ class ChromaboxSettingsTest : BasePlatformTestCase() {
     private fun copy(state: ChromaboxSettings.SettingsState) =
         XmlSerializer.deserialize(XmlSerializer.serialize(state), ChromaboxSettings.SettingsState::class.java)
 
+    fun `test named colors and float tuples are off by default`() {
+        assertFalse(settings.isLensEnabled(ColorFormat.NAMED.lensId))
+        assertFalse(settings.isLensEnabled(ColorFormat.FLOAT_TUPLES.lensId))
+        val ids = ChromaboxHost.registeredLenses.map { it.id }
+        assertTrue(ColorFormat.NAMED.lensId in ids && ColorFormat.FLOAT_TUPLES.lensId in ids)
+        assertFalse(ChromaboxHost.lenses.any { it.id == ColorFormat.NAMED.lensId || it.id == ColorFormat.FLOAT_TUPLES.lensId })
+    }
+
+    fun `test float tuples only in the listed file types`() {
+        val plainText = com.intellij.openapi.fileTypes.PlainTextFileType.INSTANCE
+        assertTrue(settings.isFloatTupleFileType(plainText))
+        settings.state.floatTupleFileTypes = "Python, JSON"
+        assertFalse(settings.isFloatTupleFileType(plainText))
+        settings.state.floatTupleFileTypes = "python, PLAIN_TEXT"
+        assertTrue(settings.isFloatTupleFileType(plainText))
+    }
+
     fun `test settings saved by 1_0 keep their meaning`() {
         val xml = """
             <ChromaboxSettings>

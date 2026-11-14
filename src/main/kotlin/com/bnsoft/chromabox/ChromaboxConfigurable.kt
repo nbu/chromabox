@@ -40,6 +40,17 @@ class ChromaboxConfigurable : BoundConfigurable(ChromaboxBundle.message("setting
                         }
                     }
                 }
+                if (format == ColorFormat.FLOAT_TUPLES) {
+                    indent {
+                        row(ChromaboxBundle.message("settings.floatTupleFileTypes")) {
+                            textField()
+                                .align(AlignX.FILL)
+                                .bindText(state::floatTupleFileTypes)
+                                .comment(ChromaboxBundle.message("settings.floatTupleFileTypes.comment"))
+                                .enabledIf(enabled.selected)
+                        }
+                    }
+                }
                 if (format == ColorFormat.INTEGER) {
                     indent {
                         buttonsGroup {

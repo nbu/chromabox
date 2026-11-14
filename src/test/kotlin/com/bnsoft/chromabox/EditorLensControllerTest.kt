@@ -42,6 +42,22 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         assertEmpty(controller.foldedRanges)
     }
 
+    fun `test named colors and float tuples get swatches only once enabled`() {
+        val text = "tomato and [1.0, 0.5, 0.0]"
+        val controller = controllerFor("a.md", text, DisplayMode.BOX_WITH_HEX)
+        assertEmpty(controller.matchRanges)
+        val formats = listOf(ColorFormat.NAMED, ColorFormat.FLOAT_TUPLES)
+        try {
+            formats.forEach { settings.setLensEnabled(it.lensId, true) }
+            settings.notifyChanged()
+            controller.refresh()
+            assertEquals(listOf(TextRange(0, 6), TextRange(11, 26)), controller.matchRanges)
+        } finally {
+            formats.forEach { settings.setLensEnabled(it.lensId, false) }
+            settings.notifyChanged()
+        }
+    }
+
     fun `test csv works too`() {
         val controller = controllerFor("a.csv", "name,color\nred,#ff0000\ngreen,#00ff00\n", DisplayMode.BOX_WITH_HEX)
         assertEquals(2, controller.matchRanges.size)
