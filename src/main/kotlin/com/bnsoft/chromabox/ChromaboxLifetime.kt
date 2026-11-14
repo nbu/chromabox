@@ -1,5 +1,6 @@
 package com.bnsoft.chromabox
 
+import com.bnsoft.chromabox.engine.EditorLensController
 import com.intellij.ide.plugins.DynamicPluginListener
 import com.intellij.ide.plugins.IdeaPluginDescriptor
 import com.intellij.openapi.Disposable
@@ -9,7 +10,7 @@ import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.util.Disposer
 
 /**
- * Parent of every [EditorColorController]. The platform disposes it when the plugin is unloaded, so no editor keeps
+ * Parent of every [EditorLensController]. The platform disposes it when the plugin is unloaded, so no editor keeps
  * a reference to plugin classes and the plugin can be updated or removed without an IDE restart.
  */
 @Service(Service.Level.APP)
@@ -29,7 +30,7 @@ class ChromaboxDynamicPluginListener : DynamicPluginListener {
         if (pluginDescriptor.pluginId.idString != PLUGIN_ID) return
         EditorFactory.getInstance().allEditors
             .filter(ChromaboxEditorFactoryListener::isSupported)
-            .forEach(EditorColorController::getOrCreate)
+            .forEach { EditorLensController.getOrCreate(it, ChromaboxHost) }
     }
 
     override fun beforePluginUnload(pluginDescriptor: IdeaPluginDescriptor, isUpdate: Boolean) {
