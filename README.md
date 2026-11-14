@@ -30,6 +30,8 @@ Display modes (_View | Chromabox_, the editor context menu, or _Settings | Tools
 - **Swatch only**: the color text is folded away behind the swatch. Select the swatch, or use _Expand_, to edit the
   text.
 - **Swatch and hex**: the swatch is shown before the color text.
+- **Gutter**: the text stays as it is; each line with colors gets a gutter icon, split into segments for up to four
+  colors. Click it to pick a color, from a list if the line has several.
 - **Off**: plain text.
 
 Each format can be turned on or off in _Settings | Tools | Chromabox | Formats_. Short hex forms (`#RGB`, `#RGBA`) can

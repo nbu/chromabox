@@ -8,24 +8,34 @@ import com.intellij.ui.JBColor
 import com.intellij.util.ui.GraphicsUtil
 import com.intellij.util.ui.JBUI
 import java.awt.Color
+import java.awt.Component
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.Rectangle
 import java.awt.geom.Path2D
 import java.awt.geom.Rectangle2D
 import java.awt.geom.RoundRectangle2D
+import javax.swing.Icon
 
 /**
- * A small rounded swatch of [color]. [outOfGamut] adds a corner mark: [color] is the clamped sRGB version of a color
- * the literal defines outside sRGB.
+ * A small rounded swatch of [color], as an inlay or, in the gutter, as an icon. [outOfGamut] adds a corner mark:
+ * [color] is the clamped sRGB version of a color the literal defines outside sRGB.
  */
-class ColorSwatchRenderer(val color: Color, val outOfGamut: Boolean = false) : EditorCustomElementRenderer {
+class ColorSwatchRenderer(val color: Color, val outOfGamut: Boolean = false) : EditorCustomElementRenderer, Icon {
     override fun calcWidthInPixels(inlay: Inlay<*>): Int = swatchSize(inlay) + JBUI.scale(GAP)
 
     override fun paint(inlay: Inlay<*>, g: Graphics, targetRegion: Rectangle, textAttributes: TextAttributes) {
         val size = swatchSize(inlay)
-        val x = targetRegion.x.toDouble() + JBUI.scale(GAP) / 2.0
-        val y = targetRegion.y + (targetRegion.height - size) / 2.0
+        paintSwatch(g, targetRegion.x.toDouble() + JBUI.scale(GAP) / 2.0, targetRegion.y + (targetRegion.height - size) / 2.0, size)
+    }
+
+    override fun getIconWidth() = JBUI.scale(ICON_SIZE)
+
+    override fun getIconHeight() = JBUI.scale(ICON_SIZE)
+
+    override fun paintIcon(c: Component?, g: Graphics, x: Int, y: Int) = paintSwatch(g, x.toDouble(), y.toDouble(), iconWidth)
+
+    private fun paintSwatch(g: Graphics, x: Double, y: Double, size: Int) {
         val arc = JBUI.scale(3).toDouble()
         val shape = RoundRectangle2D.Double(x, y, size.toDouble(), size.toDouble(), arc, arc)
 
@@ -73,6 +83,9 @@ class ColorSwatchRenderer(val color: Color, val outOfGamut: Boolean = false) : E
     companion object {
         // Space around the swatch, split evenly between both sides.
         private const val GAP = 4
+
+        // Gutter icons are 12 by 12, scaled.
+        private const val ICON_SIZE = 12
         private val BORDER = JBColor(Color(0, 0, 0, 90), Color(255, 255, 255, 90))
 
         fun of(color: ChromaColor) = ColorSwatchRenderer(color.toAwt(), outOfGamut = !color.inGamut)

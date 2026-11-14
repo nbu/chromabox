@@ -3,12 +3,14 @@ package com.bnsoft.chromabox
 import com.bnsoft.chromabox.color.ChromaColor
 import com.bnsoft.chromabox.engine.EditorLensController
 import com.intellij.openapi.actionSystem.IdeActions
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.util.TextRange
 import com.intellij.testFramework.PlatformTestUtil
+import com.intellij.testFramework.TestActionEvent
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import java.awt.Color
 
@@ -236,6 +238,54 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         settings.mode = DisplayMode.BOX_ONLY
         controller.refresh()
         assertEquals(listOf(TextRange(2, 9)), controller.foldedRanges)
+    }
+
+    fun `test gutter mode shows one icon per line and no inlays or folds`() {
+        val text = "#ff0000\nnothing\n#00ff00 and rgb(0, 0, 255)\n#111 #222 #333 #444 #555\n"
+        val controller = controllerFor("a.md", text, DisplayMode.GUTTER)
+        assertEquals(8, controller.matchRanges.size)
+        assertEmpty(myFixture.editor.inlayModel.getInlineElementsInRange(0, text.length))
+        assertEmpty(myFixture.editor.foldingModel.allFoldRegions.toList())
+        val icons = controller.lineIconRenderers
+        assertEquals(listOf(1, 2, 4), icons.map { it.segmentCount })
+        assertEquals(listOf(false, false, true), icons.map { it.hasMore })
+        assertEquals("<html>#00ff00<br>rgb(0, 0, 255)</html>", icons[1].tooltipText)
+    }
+
+    fun `test gutter mode replaces only the icons of lines that change`() {
+        val controller = controllerFor("a.md", "#ff0000\n#00ff00\n", DisplayMode.GUTTER)
+        val (first, second) = controller.lineIconRenderers
+        WriteCommandAction.runWriteCommandAction(project) { myFixture.editor.document.replaceString(9, 10, "1") }
+        controller.refresh()
+        val icons = controller.lineIconRenderers
+        assertSame(first, icons[0])
+        assertNotSame(second, icons[1])
+    }
+
+    fun `test gutter mode merges icons of lines an edit joins`() {
+        val controller = controllerFor("a.md", "#ff0000\n#00ff00", DisplayMode.GUTTER)
+        WriteCommandAction.runWriteCommandAction(project) { myFixture.editor.document.replaceString(7, 8, " ") }
+        controller.refresh()
+        assertEquals(listOf(2), controller.lineIconRenderers.map { it.segmentCount })
+    }
+
+    fun `test leaving gutter mode removes the icons`() {
+        val controller = controllerFor("a.md", "#ff0000", DisplayMode.GUTTER)
+        assertEquals(1, controller.lineIconRenderers.size)
+        settings.mode = DisplayMode.BOX_WITH_HEX
+        controller.refresh()
+        assertEmpty(controller.lineIconRenderers)
+        assertEquals(1, myFixture.editor.inlayModel.getInlineElementsInRange(0, 7).size)
+        assertEmpty(myFixture.editor.markupModel.allHighlighters.filter { it.gutterIconRenderer != null })
+    }
+
+    fun `test cycling goes through all four modes`() {
+        settings.mode = DisplayMode.BOX_ONLY
+        val seen = List(4) {
+            CycleDisplayModeAction().actionPerformed(TestActionEvent.createTestEvent())
+            settings.mode
+        }
+        assertEquals(listOf(DisplayMode.BOX_WITH_HEX, DisplayMode.GUTTER, DisplayMode.OFF, DisplayMode.BOX_ONLY), seen)
     }
 
     fun `test off removes swatches`() {
