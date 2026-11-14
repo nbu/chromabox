@@ -1,5 +1,6 @@
 package com.bnsoft.chromabox
 
+import com.bnsoft.chromabox.engine.EditorLensController
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorKind
 import com.intellij.openapi.editor.event.EditorFactoryEvent
@@ -8,11 +9,11 @@ import com.intellij.openapi.fileEditor.FileDocumentManager
 
 class ChromaboxEditorFactoryListener : EditorFactoryListener {
     override fun editorCreated(event: EditorFactoryEvent) {
-        if (isSupported(event.editor)) EditorColorController.getOrCreate(event.editor)
+        if (isSupported(event.editor)) EditorLensController.getOrCreate(event.editor, ChromaboxHost)
     }
 
     override fun editorReleased(event: EditorFactoryEvent) {
-        EditorColorController.release(event.editor)
+        EditorLensController.release(event.editor)
     }
 
     companion object {
