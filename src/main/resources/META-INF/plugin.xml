@@ -19,7 +19,7 @@
           <li>Named colors (off by default): <code>tomato</code>, <code>rebeccapurple</code></li>
           <li>Float tuples (off by default): <code>[0.1, 0.2, 0.3]</code></li>
         </ul>
-        Display modes: swatch only, swatch with the color text, or off (<em>View | Chromabox</em> or
+        Display modes: swatch only, swatch with the color text, gutter icons, or off (<em>View | Chromabox</em> or
         <em>Settings | Tools | Chromabox</em>).<br>
         Colors the IDE already shows a swatch for are skipped, and so are CSS-like files by default.
         ]]></description>
@@ -64,6 +64,7 @@
         <group id="Chromabox.DisplayMode" popup="true">
             <action id="Chromabox.Mode.BoxOnly" class="com.bnsoft.chromabox.BoxOnlyModeAction"/>
             <action id="Chromabox.Mode.BoxWithHex" class="com.bnsoft.chromabox.BoxWithHexModeAction"/>
+            <action id="Chromabox.Mode.Gutter" class="com.bnsoft.chromabox.GutterModeAction"/>
             <action id="Chromabox.Mode.Off" class="com.bnsoft.chromabox.OffModeAction"/>
             <separator/>
             <action id="Chromabox.CycleMode" class="com.bnsoft.chromabox.CycleDisplayModeAction"/>

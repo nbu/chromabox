@@ -22,6 +22,7 @@ object ChromaboxHost : LensHost {
         get() = when (settings.mode) {
             DisplayMode.BOX_ONLY -> LensPresentation.INLAY_ONLY
             DisplayMode.BOX_WITH_HEX -> LensPresentation.INLAY_WITH_TEXT
+            DisplayMode.GUTTER -> LensPresentation.GUTTER
             DisplayMode.OFF -> LensPresentation.OFF
         }
 

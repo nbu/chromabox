@@ -23,6 +23,7 @@ abstract class DisplayModeAction(private val mode: DisplayMode) : DumbAwareActio
 
 class BoxOnlyModeAction : DisplayModeAction(DisplayMode.BOX_ONLY)
 class BoxWithHexModeAction : DisplayModeAction(DisplayMode.BOX_WITH_HEX)
+class GutterModeAction : DisplayModeAction(DisplayMode.GUTTER)
 class OffModeAction : DisplayModeAction(DisplayMode.OFF)
 
 class CycleDisplayModeAction : DumbAwareAction() {

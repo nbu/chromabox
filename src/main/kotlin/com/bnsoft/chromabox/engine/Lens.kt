@@ -8,6 +8,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.ui.awt.RelativePoint
 import org.jetbrains.annotations.Nls
+import javax.swing.Icon
 
 /** One kind of literal the engine can detect, render and edit. */
 interface Lens<V : Any> {
@@ -20,6 +21,9 @@ interface Lens<V : Any> {
 
     /** Null for a read-only lens. */
     fun editor(match: LensMatch<V>): LensEditor<V>?
+
+    /** Shown in the gutter in [LensPresentation.GUTTER]; by default the [renderer], if it's also an [Icon]. */
+    fun icon(match: LensMatch<V>): Icon? = renderer(match) as? Icon
 }
 
 /** A literal at [range]. [format] is lens-specific and opaque to the engine: how the literal was written. */

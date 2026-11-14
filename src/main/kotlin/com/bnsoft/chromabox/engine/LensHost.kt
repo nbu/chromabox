@@ -10,6 +10,9 @@ enum class LensPresentation {
 
     /** The renderer is shown before the literal. */
     INLAY_WITH_TEXT,
+
+    /** The text stays as it is; each line with matches gets a gutter icon made of the matches' [Lens.icon]s. */
+    GUTTER,
     OFF,
 }
 

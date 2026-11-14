@@ -9,7 +9,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.util.messages.Topic
 
-enum class DisplayMode { BOX_ONLY, BOX_WITH_HEX, OFF }
+enum class DisplayMode { BOX_ONLY, BOX_WITH_HEX, GUTTER, OFF }
 
 /** A color notation that can be turned on or off; [lensId] is the id of the lens that detects it. */
 enum class ColorFormat(val lensId: String, val enabledByDefault: Boolean = true) {

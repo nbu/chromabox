@@ -24,6 +24,9 @@ import com.intellij.openapi.editor.event.EditorMouseListener
 import com.intellij.openapi.editor.event.EditorMouseMotionListener
 import com.intellij.openapi.editor.event.SelectionEvent
 import com.intellij.openapi.editor.event.SelectionListener
+import com.intellij.openapi.editor.markup.HighlighterLayer
+import com.intellij.openapi.editor.markup.HighlighterTargetArea
+import com.intellij.openapi.editor.markup.RangeHighlighter
 import com.intellij.openapi.editor.ex.EditorEx
 import com.intellij.openapi.editor.ex.FoldingListener
 import com.intellij.openapi.editor.ex.FoldingModelEx
@@ -42,8 +45,8 @@ import javax.swing.SwingUtilities
 
 /**
  * Shows the renderer of every [Lens] match in one editor as an inlay before the literal and, in
- * [LensPresentation.INLAY_ONLY], folds the literal away. Clicking an inlay opens the lens editor and writes the
- * edited value back.
+ * [LensPresentation.INLAY_ONLY], folds the literal away; in [LensPresentation.GUTTER], shows a gutter icon per line
+ * instead. Clicking an inlay or icon opens the lens editor and writes the edited value back.
  */
 class EditorLensController private constructor(private val editor: Editor, private val host: LensHost) : Disposable {
     private class Element<V : Any>(
@@ -51,13 +54,19 @@ class EditorLensController private constructor(private val editor: Editor, priva
         val match: LensMatch<V>,
         val marker: RangeMarker,
         val text: String,
-        val inlay: Inlay<*>,
+        /** Null in [LensPresentation.GUTTER]. */
+        val inlay: Inlay<*>?,
         var fold: FoldRegion? = null,
     ) {
         val key get() = Triple(lens.id, marker.textRange, text)
     }
 
     private val elements = mutableListOf<Element<*>>()
+
+    /** In [LensPresentation.GUTTER], one highlighter per line with elements, with that line's elements. */
+    private class LineIcon(val highlighter: RangeHighlighter, val elements: List<Element<*>>)
+
+    private val lineIcons = mutableListOf<LineIcon>()
     private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
 
     /** Text inserted since the last applied scan; a literal created there is being typed, so it isn't folded yet. */
@@ -219,6 +228,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
         removeOrphanFolds()
         try {
             applyMatches(scan)
+            if (scan.presentation == LensPresentation.GUTTER) updateLineIcons()
         } finally {
             clearEdited()
         }
@@ -235,7 +245,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
         val wanted = matches.mapTo(HashSet()) { Triple(it.lens.id, it.range, document.getText(it.range)) }
         val kept = HashSet<Triple<String, TextRange, String>>()
         val stale = elements.filter { element ->
-            val alive = element.marker.isValid && element.inlay.isValid && element.fold?.isValid != false &&
+            val alive = element.marker.isValid && element.inlay?.isValid != false && element.fold?.isValid != false &&
                 element.key in wanted
             !(alive && kept.add(element.key))
         }
@@ -259,15 +269,52 @@ class EditorLensController private constructor(private val editor: Editor, priva
 
     private fun <V : Any> createElement(scanned: ScannedMatch<V>, presentation: LensPresentation): Element<V>? {
         val range = scanned.range
+        val document = editor.document
+        if (presentation == LensPresentation.GUTTER) {
+            return Element(scanned.lens, scanned.match, document.createRangeMarker(range), document.getText(range), null)
+        }
         val renderer = scanned.lens.renderer(scanned.match)
         // A collapsed fold hides inlays at its start offset, whichever side they relate to, so when the literal is
         // folded away the inlay goes at its end, attached to it so that typing right after it doesn't move it.
         val folded = presentation == LensPresentation.INLAY_ONLY
         val offset = if (folded) range.endOffset else range.startOffset
         val inlay = editor.inlayModel.addInlineElement(offset, folded, renderer) ?: return null
-        val document = editor.document
         return Element(scanned.lens, scanned.match, document.createRangeMarker(range), document.getText(range), inlay)
     }
+
+    /**
+     * Gives every line with elements one gutter icon, replacing only the icons of lines whose elements changed. Lines
+     * can also change without any element changing, when an edit joins or splits them.
+     */
+    private fun updateLineIcons() {
+        val document = editor.document
+        val wanted = elements.filter { it.marker.isValid }
+            .sortedBy { it.marker.startOffset }
+            .groupBy { document.getLineNumber(it.marker.startOffset) }
+        val kept = HashSet<Int>()
+        val stale = lineIcons.filter { icon ->
+            val highlighter = icon.highlighter
+            val line = if (highlighter.isValid) document.getLineNumber(highlighter.startOffset) else -1
+            !(highlighter.isValid && wanted[line] == icon.elements && kept.add(line))
+        }
+        stale.forEach { it.highlighter.dispose() }
+        lineIcons.removeAll(stale.toSet())
+        for ((line, lineElements) in wanted) {
+            if (line !in kept) lineIcons += createLineIcon(lineElements)
+        }
+    }
+
+    private fun createLineIcon(lineElements: List<Element<*>>): LineIcon {
+        val start = lineElements.first().marker.startOffset
+        val end = lineElements.maxOf { it.marker.endOffset }
+        val highlighter = editor.markupModel.addRangeHighlighter(start, end, HighlighterLayer.ADDITIONAL_SYNTAX, null, HighlighterTargetArea.EXACT_RANGE)
+        highlighter.gutterIconRenderer = LineGutterIcon(lineElements.map { element ->
+            GutterEntry(iconOf(element), element.text) { location -> if (element.isEditable) startEdit(element, location) }
+        })
+        return LineIcon(highlighter, lineElements)
+    }
+
+    private fun <V : Any> iconOf(element: Element<V>) = element.lens.icon(element.match)
 
     private fun context(): LensContext? {
         val document = editor.document
@@ -352,7 +399,10 @@ class EditorLensController private constructor(private val editor: Editor, priva
         editor.caretModel.allCarets.any { it.offset in range.startOffset..range.endOffset }
 
     private fun clear() {
-        if (!editor.isDisposed) remove(elements.toList())
+        if (editor.isDisposed) return
+        lineIcons.forEach { it.highlighter.dispose() }
+        lineIcons.clear()
+        remove(elements.toList())
     }
 
     // Inlays are disposed outside the batch folding operation: the editor relayouts on inlay removal
@@ -364,7 +414,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
             editor.foldingModel.runBatchFoldingOperation({ folds.forEach(editor.foldingModel::removeFoldRegion) }, false, false)
         }
         for (element in toRemove) {
-            element.inlay.dispose()
+            element.inlay?.dispose()
             element.marker.dispose()
         }
         elements.removeAll(toRemove.toSet())
@@ -429,6 +479,8 @@ class EditorLensController private constructor(private val editor: Editor, priva
     }
 
     // Test hooks.
+    internal val lineIconRenderers: List<LineGutterIcon>
+        get() = lineIcons.sortedBy { it.highlighter.startOffset }.map { it.highlighter.gutterIconRenderer as LineGutterIcon }
     internal val matchRanges: List<TextRange> get() = elements.map { it.marker.textRange }.sortedBy { it.startOffset }
     internal val foldedRanges: List<TextRange> get() = elements.mapNotNull { it.fold?.takeIf { f -> !f.isExpanded }?.textRange }.sortedBy { it.startOffset }
 
