@@ -46,6 +46,7 @@ class ChromaboxConfigurable : BoundConfigurable(ChromaboxBundle.message("setting
                             textField()
                                 .align(AlignX.FILL)
                                 .bindText(state::floatTupleFileTypes)
+                                .applyToComponent { emptyText.text = ChromaboxBundle.message("settings.floatTupleFileTypes.empty") }
                                 .comment(ChromaboxBundle.message("settings.floatTupleFileTypes.comment"))
                                 .enabledIf(enabled.selected)
                         }
