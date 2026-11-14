@@ -15,7 +15,7 @@ class HexColorLens : Lens<ChromaColor> {
         HexColorParser.findAll(text, ChromaboxSettings.getInstance().state.shortForms)
             .map { LensMatch(it.range, ChromaColor.fromAwt(it.color), it.format) }
 
-    override fun renderer(match: LensMatch<ChromaColor>): EditorCustomElementRenderer = ColorSwatchRenderer(match.value.toAwt())
+    override fun renderer(match: LensMatch<ChromaColor>): EditorCustomElementRenderer = ColorSwatchRenderer.of(match.value)
 
     override fun editor(match: LensMatch<ChromaColor>): LensEditor<ChromaColor> = EDITOR
 
