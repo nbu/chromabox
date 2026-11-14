@@ -292,7 +292,7 @@ object CssColorFunctions {
      * Rounds to at most [most] decimals (or as many as the original had, if more). Drops trailing zeros unless the
      * original had them, and keeps its unit and leading zero.
      */
-    private fun render(value: Double, original: CssNumber, most: Int, minDecimals: Int): String {
+    internal fun render(value: Double, original: CssNumber, most: Int, minDecimals: Int): String {
         val decimals = maxOf(original.decimals, minDecimals).coerceAtMost(maxOf(most, original.decimals))
         var text = BigDecimal(value).setScale(decimals, RoundingMode.HALF_UP).toPlainString()
         if ('.' in text) {
@@ -303,6 +303,12 @@ object CssColorFunctions {
         if (text == "-0") text = "0"
         if (!original.leadingZero) text = text.replaceFirst(Regex("^(-?)0\\."), "$1.")
         return text + original.unit
+    }
+
+    /** Parses [text], a number without unit or with a CSS unit, found at [offset]. */
+    internal fun number(text: String, offset: Int): CssNumber? {
+        val number = NUMBER.matchEntire(text)?.toCssNumber() ?: return null
+        return number.copy(range = number.range.shiftRight(offset))
     }
 
     private fun MatchResult.toCssNumber(): CssNumber {

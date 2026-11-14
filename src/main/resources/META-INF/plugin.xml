@@ -29,6 +29,8 @@
         <lens implementation="com.bnsoft.chromabox.HexColorLens"/>
         <lens implementation="com.bnsoft.chromabox.CssFunctionColorLens"/>
         <lens implementation="com.bnsoft.chromabox.CssColor4Lens"/>
+        <lens implementation="com.bnsoft.chromabox.IntegerColorLens"/>
+        <lens implementation="com.bnsoft.chromabox.ConstructorColorLens"/>
     </extensions>
 
     <extensions defaultExtensionNs="com.intellij">

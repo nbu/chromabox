@@ -50,6 +50,9 @@ class ChromaboxSettings : PersistentStateComponent<ChromaboxSettings.SettingsSta
         var shortForms: Boolean = true
         var excludedFileTypes: String = DEFAULT_EXCLUDED_FILE_TYPES
 
+        /** Channel order of standalone 8-digit `0x` colors (C-01.f). */
+        var intOrder: IntColorOrder = IntColorOrder.ARGB
+
         /** Lens id to on/off, only where it differs from [ColorFormat.enabledByDefault], so defaults can still change. */
         var lensOverrides: MutableMap<String, Boolean> = sortedMapOf()
     }

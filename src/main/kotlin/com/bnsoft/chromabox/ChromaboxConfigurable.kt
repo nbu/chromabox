@@ -40,6 +40,17 @@ class ChromaboxConfigurable : BoundConfigurable(ChromaboxBundle.message("setting
                         }
                     }
                 }
+                if (format == ColorFormat.INTEGER) {
+                    indent {
+                        buttonsGroup {
+                            row(ChromaboxBundle.message("settings.intOrder")) {
+                                for (order in IntColorOrder.entries) {
+                                    radioButton(ChromaboxBundle.message("intOrder.${order.name}"), order).enabledIf(enabled.selected)
+                                }
+                            }
+                        }.bind(state::intOrder)
+                    }
+                }
             }
         }
         row(ChromaboxBundle.message("settings.excludedFileTypes")) {
