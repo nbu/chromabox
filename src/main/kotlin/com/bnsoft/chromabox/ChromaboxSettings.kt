@@ -11,6 +11,9 @@ import com.intellij.util.messages.Topic
 
 enum class DisplayMode { BOX_ONLY, BOX_WITH_HEX, GUTTER, OFF }
 
+/** When contrast badges are shown (C-02.7); [ONLY_FAILING] shows those under AA for normal text. */
+enum class ContrastBadges { ALWAYS, ONLY_FAILING, OFF }
+
 /** A color notation that can be turned on or off; [lensId] is the id of the lens that detects it. */
 enum class ColorFormat(val lensId: String, val enabledByDefault: Boolean = true) {
     HEX("color.hex"),
@@ -55,6 +58,8 @@ class ChromaboxSettings : PersistentStateComponent<ChromaboxSettings.SettingsSta
 
         /** File types where float tuples are detected (C-01.7), comma-separated; empty for every file type. */
         var floatTupleFileTypes: String = ""
+
+        var contrastBadges: ContrastBadges = ContrastBadges.ALWAYS
 
         /** Lens id to on/off, only where it differs from [ColorFormat.enabledByDefault], so defaults can still change. */
         var lensOverrides: MutableMap<String, Boolean> = sortedMapOf()

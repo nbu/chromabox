@@ -19,6 +19,8 @@
           <li>Named colors (off by default): <code>tomato</code>, <code>rebeccapurple</code></li>
           <li>Float tuples (off by default): <code>[0.1, 0.2, 0.3]</code></li>
         </ul>
+        Contrast badges show the WCAG ratio of colors that belong together, such as <code>fg</code> and
+        <code>bg</code> keys, or two colors on one line: <code>4.6:1 AA</code>.<br>
         Display modes: swatch only, swatch with the color text, gutter icons, or off (<em>View | Chromabox</em> or
         <em>Settings | Tools | Chromabox</em>).<br>
         Colors the IDE already shows a swatch for are skipped, and so are CSS-like files by default.

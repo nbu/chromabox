@@ -40,6 +40,12 @@ interface LensHost {
      */
     fun withoutShownByIde(matches: List<ScannedMatch<*>>, context: LensContext): List<ScannedMatch<*>> = matches
 
+    /**
+     * Annotations for the matches of one scan, shown as inlays in the inlay presentations. Called during the scan,
+     * in a read action.
+     */
+    fun annotations(matches: List<ScannedMatch<*>>, context: LensContext): List<LensAnnotation> = emptyList()
+
     /** Calls [listener] whenever [presentation], [lenses] or exclusions may have changed, until [disposable] is disposed. */
     fun subscribe(disposable: Disposable, listener: () -> Unit)
 
