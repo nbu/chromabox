@@ -162,6 +162,28 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         }
     }
 
+    fun `test box only folds back a color another plugin unfolds to put the caret inside`() {
+        val controller = controllerFor("a.md", "| a | #c8c8c8 |\n| b | #85664d |\n", DisplayMode.BOX_ONLY)
+        // What IdeaVim does when j/k lands inside a fold: unfold it, then move the caret in.
+        val editor = myFixture.editor
+        val fold = editor.foldingModel.allFoldRegions.first { it.startOffset == 22 }
+        editor.foldingModel.runBatchFoldingOperation { fold.isExpanded = true }
+        editor.caretModel.moveToOffset(23)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(listOf(TextRange(6, 13), TextRange(22, 29)), controller.foldedRanges)
+        assertEquals(22, editor.caretModel.offset)
+    }
+
+    fun `test box only keeps a selected color unfolded`() {
+        val controller = controllerFor("a.md", "x #ff0000 y", DisplayMode.BOX_ONLY)
+        val editor = myFixture.editor
+        val fold = editor.foldingModel.allFoldRegions.single()
+        editor.foldingModel.runBatchFoldingOperation { fold.isExpanded = true }
+        editor.selectionModel.setSelection(3, 9)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEmpty(controller.foldedRanges)
+    }
+
     fun `test box only keeps a color the user expands`() {
         val controller = controllerFor("a.md", "x #ff0000<caret> y", DisplayMode.BOX_ONLY)
         myFixture.performEditorAction(IdeActions.ACTION_EXPAND_REGION)

@@ -292,20 +292,24 @@ class EditorLensController private constructor(private val editor: Editor, priva
                 it.putUserData(SHOWN, null)
             }
         }, false, false)
+        // A caret left inside a folded literal would unfold it again, so put it before the literal, next to the swatch.
+        for (caret in editor.caretModel.allCarets) {
+            val fold = changed.firstOrNull { caret.offset > it.startOffset && caret.offset < it.endOffset } ?: continue
+            caret.moveToOffset(fold.startOffset)
+        }
     }
 
     /**
      * Expanded folds that should be collapsed. One the engine or the user expanded stays expanded while a caret
-     * touches it. Anything else that expands folds, such as navigation unfolding the caret's line, only shows a
-     * literal while a caret or selection is inside it.
+     * touches it. Anything else that expands folds, such as navigation unfolding the caret's line or IdeaVim
+     * unfolding a literal its caret moves into, only shows a literal while a selection covers part of it.
      */
     private fun foldsToCollapse() = elements.mapNotNull { it.fold }.filter { fold ->
-        fold.isValid && fold.isExpanded && !(if (fold.getUserData(SHOWN) == true) isCaretNear(fold.textRange) else isCaretInside(fold.textRange))
+        fold.isValid && fold.isExpanded && !(if (fold.getUserData(SHOWN) == true) isCaretNear(fold.textRange) else isSelected(fold.textRange))
     }
 
-    private fun isCaretInside(range: TextRange) = editor.caretModel.allCarets.any {
-        it.offset > range.startOffset && it.offset < range.endOffset ||
-            it.hasSelection() && TextRange(it.selectionStart, it.selectionEnd).intersectsStrict(range)
+    private fun isSelected(range: TextRange) = editor.caretModel.allCarets.any {
+        it.hasSelection() && TextRange(it.selectionStart, it.selectionEnd).intersectsStrict(range)
     }
 
     private fun isCaretNear(range: TextRange) =
