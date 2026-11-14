@@ -5,6 +5,7 @@ import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.util.TextRange
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import java.awt.Color
 
@@ -79,6 +80,13 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         val controller = controllerFor("a.md", "<caret> #ff0000", DisplayMode.BOX_WITH_HEX)
         myFixture.type("#00f ")
         controller.refresh()
+        assertEquals(listOf(TextRange(0, 4), TextRange(6, 13)), controller.matchRanges)
+    }
+
+    fun `test background refresh applies matches on the EDT`() {
+        val controller = controllerFor("a.md", "<caret> #ff0000", DisplayMode.BOX_WITH_HEX)
+        myFixture.type("#00f ")
+        PlatformTestUtil.waitForPromise(controller.refreshInBackground())
         assertEquals(listOf(TextRange(0, 4), TextRange(6, 13)), controller.matchRanges)
     }
 

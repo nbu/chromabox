@@ -2,6 +2,8 @@ package com.bnsoft.chromabox.engine
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.FoldRegion
@@ -22,6 +24,8 @@ import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.Alarm
+import com.intellij.util.concurrency.AppExecutorUtil
+import org.jetbrains.concurrency.CancellablePromise
 import java.awt.Cursor
 import java.util.UUID
 import javax.swing.SwingUtilities
@@ -73,26 +77,52 @@ class EditorLensController private constructor(private val editor: Editor, priva
         }, this)
         host.subscribe(this) {
             clear()
-            refresh()
+            scheduleRefresh(0)
         }
     }
+
+    /** What one scan found, for the document as of [stamp]. Null [matches] means the editor shows nothing. */
+    private class Scan(val stamp: Long, val presentation: LensPresentation, val matches: List<ScannedMatch<*>>?)
 
     private fun scheduleRefresh(delayMillis: Int = REFRESH_DELAY_MS) {
         alarm.cancelAllRequests()
-        alarm.addRequest(::refresh, delayMillis)
+        alarm.addRequest(::refreshInBackground, delayMillis)
     }
 
-    /** Brings elements in line with the document text, keeping the ones whose literal didn't change. */
+    /** Scans in a background read action and applies the result on the EDT. Newer requests replace pending ones. */
+    internal fun refreshInBackground(): CancellablePromise<*> =
+        ReadAction.nonBlocking<Scan?> { if (editor.isDisposed) null else scan() }
+            .coalesceBy(this)
+            .expireWith(this)
+            .finishOnUiThread(ModalityState.stateForComponent(editor.component)) { it?.let(::apply) }
+            .submit(AppExecutorUtil.getAppExecutorService())
+
+    /** Brings elements in line with the document text right away, on the EDT. */
     internal fun refresh() {
-        if (editor.isDisposed) return
+        if (!editor.isDisposed) apply(scan())
+    }
+
+    private fun scan(): Scan {
+        val document = editor.document
+        val stamp = document.modificationStamp
         val presentation = host.presentation
         val context = context()
-        if (presentation == LensPresentation.OFF || context == null) {
+        if (presentation == LensPresentation.OFF || context == null) return Scan(stamp, presentation, null)
+        return Scan(stamp, presentation, LensScanner.scan(document.immutableCharSequence, context, host.lenses))
+    }
+
+    /** Keeps the elements whose literal didn't change, and replaces the rest. */
+    private fun apply(scan: Scan) {
+        if (editor.isDisposed) return
+        val document = editor.document
+        // The document changed while scanning; the change already scheduled a newer scan.
+        if (scan.stamp != document.modificationStamp) return
+        val presentation = scan.presentation
+        val matches = scan.matches
+        if (matches == null) {
             clear()
             return
         }
-        val document = editor.document
-        val matches = LensScanner.scan(document.immutableCharSequence, context, host.lenses)
         val wanted = matches.mapTo(HashSet()) { Triple(it.lens.id, it.range, document.getText(it.range)) }
         val kept = HashSet<Triple<String, TextRange, String>>()
         val stale = elements.filter { element ->
