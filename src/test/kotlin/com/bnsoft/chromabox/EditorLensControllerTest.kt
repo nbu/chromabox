@@ -5,6 +5,7 @@ import com.bnsoft.chromabox.engine.EditorLensController
 import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.util.TextRange
 import com.intellij.testFramework.PlatformTestUtil
@@ -103,9 +104,122 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         assertEquals(listOf(TextRange(2, 9)), controller.foldedRanges)
     }
 
-    fun `test box only keeps hex next to the caret unfolded`() {
-        val controller = controllerFor("a.md", "x <caret>#ff0000 and #00ff00", DisplayMode.BOX_ONLY)
-        assertEquals(listOf(TextRange(14, 21)), controller.foldedRanges)
+    /** Adds collapsed folds like the ones the IDE restores from an earlier session: untracked, empty placeholder. */
+    private fun addRestoredFold(start: Int, end: Int, placeholder: String = "") {
+        val folding = myFixture.editor.foldingModel
+        folding.runBatchFoldingOperation { folding.addFoldRegion(start, end, placeholder)!!.isExpanded = false }
+    }
+
+    private fun foldsOf(range: TextRange) = myFixture.editor.foldingModel.allFoldRegions.filter { it.textRange == range }
+
+    fun `test folds restored from an earlier session are removed in every mode`() {
+        for (mode in DisplayMode.entries) {
+            settings.mode = mode
+            myFixture.configureByText("${mode.name}.md", "<caret>x #ff0000 and #00ff00")
+            EditorLensController.release(myFixture.editor)
+            addRestoredFold(2, 9)
+            addRestoredFold(14, 21, "...")
+            EditorLensController.getOrCreate(myFixture.editor, ChromaboxHost).refresh()
+
+            val restored = foldsOf(TextRange(2, 9))
+            if (mode == DisplayMode.BOX_ONLY) {
+                assertEquals(mode.name, 1, restored.size)
+                assertEquals(mode.name, true, restored.single().getUserData(EditorLensController.LENS_FOLD))
+            } else {
+                assertEmpty(mode.name, restored)
+            }
+            // A fold the user made over a color, with a visible placeholder, stays.
+            assertEquals(mode.name, "...", foldsOf(TextRange(14, 21)).single().placeholderText)
+            if (mode == DisplayMode.BOX_WITH_HEX) {
+                val inlay = myFixture.editor.inlayModel.getInlineElementsInRange(2, 2).single()
+                assertNotNull("swatch hidden", inlay.bounds)
+            }
+            EditorLensController.release(myFixture.editor)
+        }
+    }
+
+    fun `test folds restored after the first scan are removed too`() {
+        controllerFor("a.md", "<caret>x #ff0000 y", DisplayMode.BOX_WITH_HEX)
+        addRestoredFold(2, 9)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEmpty(foldsOf(TextRange(2, 9)))
+    }
+
+    fun `test box only folds hex next to the caret when the file opens`() {
+        val controller = controllerFor("a.md", "x #ff0000<caret> and #00ff00", DisplayMode.BOX_ONLY)
+        assertEquals(listOf(TextRange(2, 9), TextRange(14, 21)), controller.foldedRanges)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_MOVE_CARET_LEFT)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(listOf(TextRange(2, 9), TextRange(14, 21)), controller.foldedRanges)
+    }
+
+    fun `test box only folds back a color that navigation unfolds next to the caret`() {
+        val controller = controllerFor("a.md", "| a | #c8c8c8 |\n| b | #85664d |\n", DisplayMode.BOX_ONLY)
+        for (offset in listOf(22, 29)) {
+            OpenFileDescriptor(project, myFixture.file.virtualFile, offset).navigateIn(myFixture.editor)
+            // Folded back before anything else runs, so the editor never paints the hex.
+            assertEquals("caret at $offset", listOf(TextRange(6, 13), TextRange(22, 29)), controller.foldedRanges)
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            assertEquals("caret at $offset", listOf(TextRange(6, 13), TextRange(22, 29)), controller.foldedRanges)
+        }
+    }
+
+    fun `test box only folds back a color another plugin unfolds to put the caret inside`() {
+        val controller = controllerFor("a.md", "| a | #c8c8c8 |\n| b | #85664d |\n", DisplayMode.BOX_ONLY)
+        // What IdeaVim does when j/k lands inside a fold: unfold it, then move the caret in.
+        val editor = myFixture.editor
+        val fold = editor.foldingModel.allFoldRegions.first { it.startOffset == 22 }
+        editor.foldingModel.runBatchFoldingOperation { fold.isExpanded = true }
+        assertEquals(listOf(TextRange(6, 13), TextRange(22, 29)), controller.foldedRanges)
+        editor.caretModel.moveToOffset(23)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(listOf(TextRange(6, 13), TextRange(22, 29)), controller.foldedRanges)
+        assertEquals(22, editor.caretModel.offset)
+    }
+
+    fun `test box only moves a caret that another plugin puts inside a color in the direction it went`() {
+        val controller = controllerFor("a.md", "x #ff0000 y", DisplayMode.BOX_ONLY)
+        val editor = myFixture.editor
+        val fold = editor.foldingModel.allFoldRegions.single()
+        // IdeaVim's l onto the first character of the color or from its start, then h from its end.
+        for ((move, expected) in listOf(Pair(1, 2) to 9, Pair(2, 3) to 9, Pair(9, 8) to 2)) {
+            editor.caretModel.moveToOffset(move.first)
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            editor.foldingModel.runBatchFoldingOperation { fold.isExpanded = true }
+            editor.caretModel.moveToOffset(move.second)
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            assertEquals("$move", expected, editor.caretModel.offset)
+            // Past the color the caret is drawn after its swatch, before it the caret is drawn before it.
+            assertEquals("$move", editor.offsetToVisualPosition(expected, expected == 9, false), editor.caretModel.visualPosition)
+            assertEquals(listOf(TextRange(2, 9)), controller.foldedRanges)
+        }
+    }
+
+    fun `test box only keeps a selected color unfolded`() {
+        val controller = controllerFor("a.md", "x #ff0000 y", DisplayMode.BOX_ONLY)
+        val editor = myFixture.editor
+        val fold = editor.foldingModel.allFoldRegions.single()
+        editor.foldingModel.runBatchFoldingOperation { fold.isExpanded = true }
+        editor.selectionModel.setSelection(3, 9)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEmpty(controller.foldedRanges)
+    }
+
+    fun `test box only keeps a color the user expands`() {
+        val controller = controllerFor("a.md", "x #ff0000<caret> y", DisplayMode.BOX_ONLY)
+        myFixture.performEditorAction(IdeActions.ACTION_EXPAND_REGION)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEmpty(controller.foldedRanges)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_MOVE_LINE_END)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(listOf(TextRange(2, 9)), controller.foldedRanges)
+    }
+
+    fun `test switching to box only folds hex next to the caret`() {
+        val controller = controllerFor("a.md", "x #ff0000<caret> y", DisplayMode.BOX_WITH_HEX)
+        settings.mode = DisplayMode.BOX_ONLY
+        controller.refresh()
+        assertEquals(listOf(TextRange(2, 9)), controller.foldedRanges)
     }
 
     fun `test off removes swatches`() {

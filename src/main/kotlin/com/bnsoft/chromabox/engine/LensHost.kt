@@ -26,6 +26,9 @@ interface LensHost {
     /** Enabled lenses, in registration order. Earlier lenses win ties between overlapping matches. */
     val lenses: List<Lens<*>>
 
+    /** Every lens, enabled or not; recognizes folds the engine left behind in an earlier session. */
+    val allLenses: List<Lens<*>> get() = lenses
+
     fun isExcluded(fileType: FileType): Boolean
 
     /** Calls [listener] whenever [presentation], [lenses] or exclusions may have changed, until [disposable] is disposed. */
