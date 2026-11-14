@@ -178,14 +178,16 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         val controller = controllerFor("a.md", "x #ff0000 y", DisplayMode.BOX_ONLY)
         val editor = myFixture.editor
         val fold = editor.foldingModel.allFoldRegions.single()
-        // IdeaVim's l from the start of the color, then h from its end.
-        for ((from, expected) in listOf(2 to 9, 9 to 2)) {
-            editor.caretModel.moveToOffset(from)
+        // IdeaVim's l onto the first character of the color or from its start, then h from its end.
+        for ((move, expected) in listOf(Pair(1, 2) to 9, Pair(2, 3) to 9, Pair(9, 8) to 2)) {
+            editor.caretModel.moveToOffset(move.first)
             PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
             editor.foldingModel.runBatchFoldingOperation { fold.isExpanded = true }
-            editor.caretModel.moveToOffset(if (from == 2) 3 else 8)
+            editor.caretModel.moveToOffset(move.second)
             PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
-            assertEquals("from $from", expected, editor.caretModel.offset)
+            assertEquals("$move", expected, editor.caretModel.offset)
+            // Past the color the caret is drawn after its swatch, before it the caret is drawn before it.
+            assertEquals("$move", editor.offsetToVisualPosition(expected, expected == 9, false), editor.caretModel.visualPosition)
             assertEquals(listOf(TextRange(2, 9)), controller.foldedRanges)
         }
     }

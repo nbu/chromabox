@@ -300,15 +300,19 @@ class EditorLensController private constructor(private val editor: Editor, priva
                 it.putUserData(SHOWN, null)
             }
         }, false, false)
-        // A caret left inside a folded literal would unfold it again, so move it out: past the literal if it came from
-        // its start on the same line (IdeaVim's l), else to its start, next to the swatch (h, or j/k from another line).
+        // A caret left inside a folded literal would unfold it again, so move it out: past the literal if it moved
+        // forward into it on the same line (IdeaVim's l, which unfolds a fold as soon as it reaches its first
+        // character), else to its start, next to the swatch (h, or j/k from another line).
         val document = editor.document
         for (caret in editor.caretModel.allCarets) {
-            val fold = changed.firstOrNull { caret.offset > it.startOffset && caret.offset < it.endOffset } ?: continue
+            val offset = caret.offset
+            val fold = changed.firstOrNull { offset >= it.startOffset && offset < it.endOffset } ?: continue
             val from = caret.getUserData(OFFSET_BEFORE_FOLD)
-            val forward = from != null && from <= fold.startOffset && from <= document.textLength &&
+            val forward = from != null && from < offset && from <= fold.startOffset && from <= document.textLength &&
                 document.getLineNumber(from) == document.getLineNumber(fold.startOffset)
-            caret.moveToOffset(if (forward) fold.endOffset else fold.startOffset)
+            // After the swatch, which sits at the end of the literal; moveToOffset would put the caret before it.
+            if (forward) caret.moveToVisualPosition(editor.offsetToVisualPosition(fold.endOffset, true, false))
+            else if (offset > fold.startOffset) caret.moveToOffset(fold.startOffset)
         }
     }
 
