@@ -52,6 +52,9 @@ class EditorLensController private constructor(private val editor: Editor, priva
     private val elements = mutableListOf<Element<*>>()
     private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
 
+    /** Text inserted since the last applied scan; a literal created there is being typed, so it isn't folded yet. */
+    private val edited = mutableListOf<RangeMarker>()
+
     init {
         editor.document.addDocumentListener(object : DocumentListener {
             override fun beforeDocumentChange(event: DocumentEvent) {
@@ -70,7 +73,11 @@ class EditorLensController private constructor(private val editor: Editor, priva
                 }, { editor.isDisposed })
             }
 
-            override fun documentChanged(event: DocumentEvent) = scheduleRefresh()
+            override fun documentChanged(event: DocumentEvent) {
+                edited += editor.document.createRangeMarker(event.offset, event.offset + event.newLength)
+                    .apply { isGreedyToLeft = true; isGreedyToRight = true }
+                scheduleRefresh()
+            }
         }, this)
         editor.caretModel.addCaretListener(object : CaretListener {
             // Folding can't be changed from inside a caret event, so defer it.
@@ -169,6 +176,15 @@ class EditorLensController private constructor(private val editor: Editor, priva
         // The document changed while scanning; the change already scheduled a newer scan.
         if (scan.stamp != document.modificationStamp) return
         removeOrphanFolds()
+        try {
+            applyMatches(scan)
+        } finally {
+            clearEdited()
+        }
+    }
+
+    private fun applyMatches(scan: Scan) {
+        val document = editor.document
         val presentation = scan.presentation
         val matches = scan.matches
         if (matches == null) {
@@ -195,6 +211,11 @@ class EditorLensController private constructor(private val editor: Editor, priva
         }
     }
 
+    private fun clearEdited() {
+        edited.forEach(RangeMarker::dispose)
+        edited.clear()
+    }
+
     private fun <V : Any> createElement(scanned: ScannedMatch<V>, presentation: LensPresentation): Element<V>? {
         val range = scanned.range
         val renderer = scanned.lens.renderer(scanned.match)
@@ -219,7 +240,9 @@ class EditorLensController private constructor(private val editor: Editor, priva
     private fun addFold(range: TextRange): FoldRegion? {
         val fold = editor.foldingModel.addFoldRegion(range.startOffset, range.endOffset, "") ?: return null
         fold.putUserData(LENS_FOLD, true)
-        fold.isExpanded = isCaretNear(range)
+        // Only a literal being typed starts unfolded; one the caret merely touches (a file opened with the caret next
+        // to it, a mode switch) starts folded, like it would be after the caret stepped over it.
+        fold.isExpanded = isCaretNear(range) && edited.any { it.isValid && it.textRange.intersects(range) }
         return fold
     }
 
@@ -329,6 +352,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
     }
 
     override fun dispose() {
+        clearEdited()
         if (!editor.isDisposed) {
             clear()
             (editor as? EditorEx)?.setCustomCursor(this, null)

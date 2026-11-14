@@ -144,9 +144,19 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         assertEmpty(foldsOf(TextRange(2, 9)))
     }
 
-    fun `test box only keeps hex next to the caret unfolded`() {
-        val controller = controllerFor("a.md", "x <caret>#ff0000 and #00ff00", DisplayMode.BOX_ONLY)
-        assertEquals(listOf(TextRange(14, 21)), controller.foldedRanges)
+    fun `test box only folds hex next to the caret when the file opens`() {
+        val controller = controllerFor("a.md", "x #ff0000<caret> and #00ff00", DisplayMode.BOX_ONLY)
+        assertEquals(listOf(TextRange(2, 9), TextRange(14, 21)), controller.foldedRanges)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_MOVE_CARET_LEFT)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(listOf(TextRange(2, 9), TextRange(14, 21)), controller.foldedRanges)
+    }
+
+    fun `test switching to box only folds hex next to the caret`() {
+        val controller = controllerFor("a.md", "x #ff0000<caret> y", DisplayMode.BOX_WITH_HEX)
+        settings.mode = DisplayMode.BOX_ONLY
+        controller.refresh()
+        assertEquals(listOf(TextRange(2, 9)), controller.foldedRanges)
     }
 
     fun `test off removes swatches`() {
