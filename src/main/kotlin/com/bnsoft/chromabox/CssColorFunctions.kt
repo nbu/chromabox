@@ -145,11 +145,21 @@ object CssColorFunctions {
     private const val MAX_OVERSHOOT = 2.0
 
     fun findAll(text: CharSequence, functions: Set<CssColorFunction> = CssColorFunction.entries.toSet()): List<CssColorMatch> =
-        FUNCTION.findAll(text).mapNotNull { m ->
+        FUNCTION.findAllAt(text, functionStarts(text, functions)).mapNotNull { m ->
             val (color, format) = parse(m.value) ?: return@mapNotNull null
             if (format.function !in functions) return@mapNotNull null
             CssColorMatch(TextRange(m.range.first, m.range.last + 1), color, format)
         }.toList()
+
+    /** Where a function in [functions] can start: the name before each `(`. */
+    private fun functionStarts(text: CharSequence, functions: Set<CssColorFunction>): Sequence<Int> {
+        val names = functions.flatMapTo(HashSet()) { if (it.colorSpace != null) setOf("color") else it.names }
+        val lengths = names.minOf { it.length }..names.maxOf { it.length }
+        return text.offsetsOf('(').mapNotNull { paren ->
+            val start = text.lettersStart(paren)
+            start.takeIf { paren - start in lengths && text.substring(start, paren).lowercase() in names }
+        }
+    }
 
     fun parse(literal: String): Pair<ChromaColor, CssFunctionFormat>? {
         val open = literal.indexOf('(')

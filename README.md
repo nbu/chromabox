@@ -7,19 +7,36 @@
 
 ## Overview
 
-Chromabox renders hex colors (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`) as color swatches in any text file,
-such as Markdown or CSV. Click a swatch to open the color picker; the picked color is written back in the
-same style (case, short/long form, alpha), and one undo reverts the whole pick.
+Chromabox shows color swatches next to colors in any text file, such as Markdown, CSV, JSON, YAML or source code.
+Click a swatch to open the color picker; the picked color is written back in the notation it was written in, and one
+undo reverts the whole pick.
+
+| Format | Examples | Default |
+|---|---|---|
+| Hex | `#f00`, `#f008`, `#1E90FF`, `#1E90FF80` | On |
+| CSS functions | `rgb(255, 0, 0)`, `rgba(255,0,0,.5)`, `rgb(255 0 0 / 50%)`, `hsl(120deg 50% 50%)`, `hwb()` | On |
+| CSS Color 4 | `oklch(70% 0.1 200)`, `oklab()`, `lab()`, `lch()`, `color(display-p3 1 0 0)` | On |
+| Integer colors | `0xFFAABBCC` (ARGB, or RGBA in settings) | On |
+| Language constructors | `Color(0xFF112233)`, `Color.fromARGB(255, 1, 2, 3)`, `new Color(1, 2, 3)`, `UIColor(red: 0.1, green: 0.2, blue: 0.3, alpha: 1)` | On |
+| Named colors | `tomato`, `rebeccapurple` | Off |
+| Float tuples | `[0.1, 0.2, 0.3]`, `(1.0, 0.5, 0.0, 1.0)` | Off |
+
+Writing back keeps the function name, separators, units, number style and case. If the picked color has alpha and
+the original doesn't, alpha is added in the same notation: `rgb(1, 2, 3)` becomes `rgba(1, 2, 3, 0.5)`. Colors in
+CSS Color 4 spaces that are outside sRGB are drawn clamped, with a small "out of gamut" mark.
 
 Display modes (_View | Chromabox_, the editor context menu, or _Settings | Tools | Chromabox_):
 
-- **Swatch only**: the hex text is folded away; it reappears while the caret touches it, so it can still be edited.
-- **Swatch and hex**: the swatch is shown before the hex text.
+- **Swatch only**: the color text is folded away behind the swatch. Select the swatch, or use _Expand_, to edit the
+  text.
+- **Swatch and hex**: the swatch is shown before the color text.
 - **Off**: plain text.
 
-CSS-like file types (CSS, SCSS, Sass, Less, Stylus, PostCSS) are skipped by default because the IDE already shows
-color swatches there. The list is editable in settings. Short forms (`#RGB`, `#RGBA`) can be turned off if hashtags
-like `#bad` or `#cafe` show up as colors.
+Each format can be turned on or off in _Settings | Tools | Chromabox | Formats_. Short hex forms (`#RGB`, `#RGBA`) can
+be turned off if hashtags like `#bad` or `#cafe` show up as colors, and float tuples can be limited to chosen file
+types. Colors the IDE already shows a swatch for, such as AWT colors in Java, don't get a second one. CSS-like file
+types (CSS, SCSS, Sass, Less, Stylus, PostCSS) are skipped by default; the list is editable in settings. Files larger
+than 2 million characters aren't scanned.
 
 ## Plugin structure
 

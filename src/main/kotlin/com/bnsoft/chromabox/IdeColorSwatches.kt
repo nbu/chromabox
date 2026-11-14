@@ -20,24 +20,27 @@ import com.intellij.psi.util.PsiTreeUtil
 object IdeColorSwatches {
     private val LOG = logger<IdeColorSwatches>()
 
-    fun isShown(range: TextRange, context: LensContext): Boolean {
-        val project = context.project ?: return false
+    /** Whether the IDE shows a swatch for the color at a range of [context]'s document; null if it shows none there. */
+    fun shownIn(context: LensContext): ((TextRange) -> Boolean)? {
+        val project = context.project ?: return null
         val providers = ElementColorProvider.EP_NAME.extensionList
-        if (providers.isEmpty()) return false
+        if (providers.isEmpty()) return null
         val documentManager = PsiDocumentManager.getInstance(project)
-        if (!documentManager.isCommitted(context.document)) return false
-        val file = documentManager.getPsiFile(context.document) ?: return false
         val document = context.document
-        val lines = TextRange(
-            document.getLineStartOffset(document.getLineNumber(range.startOffset)),
-            document.getLineEndOffset(document.getLineNumber(range.endOffset)),
-        )
+        if (!documentManager.isCommitted(document)) return null
+        val file = documentManager.getPsiFile(document) ?: return null
         val injected = InjectedLanguageManager.getInstance(project)
-        val elements = candidates(file.findElementAt(range.startOffset), range, lines) { it.textRange } +
-            candidates(injected.findInjectedElementAt(file, range.startOffset), range, lines) {
-                injected.injectedToHost(it, it.textRange)
-            }
-        return elements.any { element -> providers.any { it.hasColor(element) } }
+        return { range ->
+            val lines = TextRange(
+                document.getLineStartOffset(document.getLineNumber(range.startOffset)),
+                document.getLineEndOffset(document.getLineNumber(range.endOffset)),
+            )
+            val elements = candidates(file.findElementAt(range.startOffset), range, lines) { it.textRange } +
+                candidates(injected.findInjectedElementAt(file, range.startOffset), range, lines) {
+                    injected.injectedToHost(it, it.textRange)
+                }
+            elements.any { element -> providers.any { it.hasColor(element) } }
+        }
     }
 
     /** The leaves from [first] on that start in [range], and their ancestors within [lines], in host offsets. */

@@ -34,8 +34,10 @@ object ChromaboxHost : LensHost {
 
     override fun isExcluded(fileType: FileType): Boolean = settings.isExcluded(fileType)
 
-    override fun isShownByIde(match: ScannedMatch<*>, context: LensContext): Boolean =
-        IdeColorSwatches.isShown(match.range, context)
+    override fun withoutShownByIde(matches: List<ScannedMatch<*>>, context: LensContext): List<ScannedMatch<*>> {
+        val shown = IdeColorSwatches.shownIn(context) ?: return matches
+        return matches.filterNot { shown(it.range) }
+    }
 
     override fun subscribe(disposable: Disposable, listener: () -> Unit) {
         ApplicationManager.getApplication().messageBus.connect(disposable)

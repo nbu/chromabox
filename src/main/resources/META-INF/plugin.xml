@@ -6,12 +6,22 @@
 
     <description><![CDATA[
         <img src="https://raw.githubusercontent.com/nbu/chromabox/main/docs/chromabox-banner.png" width="1280" height="800" alt="Chromabox"/><br>
-        Renders hex colors (<code>#RGB</code>, <code>#RGBA</code>, <code>#RRGGBB</code>, <code>#RRGGBBAA</code>)
-        as color swatches in any text file, such as Markdown or CSV.<br>
-        Click a swatch to pick a new color; the hex value in the file is updated.<br>
-        Display modes: swatch only, swatch with hex, or off (<em>View | Chromabox</em> or
+        Shows color swatches next to colors in any text file, such as Markdown, CSV, JSON, YAML or source code.<br>
+        Click a swatch to pick a new color; it's written back in the notation the color was written in.<br>
+        Formats, each with its own setting:
+        <ul>
+          <li>Hex: <code>#f00</code>, <code>#1E90FF</code>, <code>#1E90FF80</code></li>
+          <li>CSS functions: <code>rgb(255, 0, 0)</code>, <code>rgb(255 0 0 / 50%)</code>, <code>hsl()</code>, <code>hwb()</code></li>
+          <li>CSS Color 4: <code>oklch(70% 0.1 200)</code>, <code>oklab()</code>, <code>lab()</code>, <code>lch()</code>, <code>color(display-p3 1 0 0)</code></li>
+          <li>Integer colors: <code>0xFFAABBCC</code></li>
+          <li>Language constructors: Compose and Flutter <code>Color(0xFF112233)</code>, AWT <code>new Color(1, 2, 3)</code>,
+            UIKit and SwiftUI <code>UIColor(red: 0.1, green: 0.2, blue: 0.3, alpha: 1)</code></li>
+          <li>Named colors (off by default): <code>tomato</code>, <code>rebeccapurple</code></li>
+          <li>Float tuples (off by default): <code>[0.1, 0.2, 0.3]</code></li>
+        </ul>
+        Display modes: swatch only, swatch with the color text, or off (<em>View | Chromabox</em> or
         <em>Settings | Tools | Chromabox</em>).<br>
-        CSS-like files are skipped by default, because the IDE already shows color swatches there.
+        Colors the IDE already shows a swatch for are skipped, and so are CSS-like files by default.
         ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
