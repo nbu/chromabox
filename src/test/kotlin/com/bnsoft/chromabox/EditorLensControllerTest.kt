@@ -157,6 +157,8 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         val controller = controllerFor("a.md", "| a | #c8c8c8 |\n| b | #85664d |\n", DisplayMode.BOX_ONLY)
         for (offset in listOf(22, 29)) {
             OpenFileDescriptor(project, myFixture.file.virtualFile, offset).navigateIn(myFixture.editor)
+            // Folded back before anything else runs, so the editor never paints the hex.
+            assertEquals("caret at $offset", listOf(TextRange(6, 13), TextRange(22, 29)), controller.foldedRanges)
             PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
             assertEquals("caret at $offset", listOf(TextRange(6, 13), TextRange(22, 29)), controller.foldedRanges)
         }
@@ -168,6 +170,7 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         val editor = myFixture.editor
         val fold = editor.foldingModel.allFoldRegions.first { it.startOffset == 22 }
         editor.foldingModel.runBatchFoldingOperation { fold.isExpanded = true }
+        assertEquals(listOf(TextRange(6, 13), TextRange(22, 29)), controller.foldedRanges)
         editor.caretModel.moveToOffset(23)
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
         assertEquals(listOf(TextRange(6, 13), TextRange(22, 29)), controller.foldedRanges)

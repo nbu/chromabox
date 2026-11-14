@@ -22,6 +22,8 @@ import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.editor.event.EditorMouseEvent
 import com.intellij.openapi.editor.event.EditorMouseListener
 import com.intellij.openapi.editor.event.EditorMouseMotionListener
+import com.intellij.openapi.editor.event.SelectionEvent
+import com.intellij.openapi.editor.event.SelectionListener
 import com.intellij.openapi.editor.ex.EditorEx
 import com.intellij.openapi.editor.ex.FoldingListener
 import com.intellij.openapi.editor.ex.FoldingModelEx
@@ -90,16 +92,17 @@ class EditorLensController private constructor(private val editor: Editor, priva
         }, this)
         editor.caretModel.addCaretListener(object : CaretListener {
             // Folding can't be changed from inside a caret event, so defer it.
-            override fun caretPositionChanged(event: CaretEvent) {
-                val caret = event.caret
-                if (caret != null) {
-                    val old = editor.logicalPositionToOffset(event.oldPosition)
-                    if (elements.none { it.fold?.let { f -> f.isValid && old > f.startOffset && old < f.endOffset } == true }) {
-                        caret.putUserData(OFFSET_BEFORE_FOLD, old)
-                    }
-                }
+            override fun caretPositionChanged(event: CaretEvent) =
                 ApplicationManager.getApplication().invokeLater({ updateFoldExpansion() }, { editor.isDisposed })
-            }
+        }, this)
+        editor.selectionModel.addSelectionListener(object : SelectionListener {
+            // Show a folded literal a selection covers, like the one Find selects. Deferred like caret events.
+            override fun selectionChanged(event: SelectionEvent) = ApplicationManager.getApplication().invokeLater({
+                val folds = elements.mapNotNull { it.fold }.filter { it.isValid && !it.isExpanded && isSelected(it.textRange) }
+                if (folds.isNotEmpty()) {
+                    editor.foldingModel.runBatchFoldingOperation({ folds.forEach { it.isExpanded = true } }, false, false)
+                }
+            }, { editor.isDisposed })
         }, this)
         editor.addEditorMouseListener(object : EditorMouseListener {
             override fun mousePressed(event: EditorMouseEvent) {
@@ -122,14 +125,15 @@ class EditorLensController private constructor(private val editor: Editor, priva
                 if (userExpanding && region.isExpanded && region.getUserData(LENS_FOLD) == true) region.putUserData(SHOWN, true)
             }
 
-            // The IDE restores saved folds in a batch of its own, possibly after the first scan, and unfolds the
-            // caret's line when navigating to a file.
             override fun onFoldProcessingEnd() {
-                if (orphanFolds().isEmpty() && foldsToCollapse().isEmpty()) return
-                ApplicationManager.getApplication().invokeLater({
-                    removeOrphanFolds()
-                    updateFoldExpansion()
-                }, { editor.isDisposed })
+                // Fold back what others unfold (navigation unfolds the caret's line, IdeaVim a literal its caret moves
+                // into) right away, before the editor paints the literal. The caret moves out later, once whoever
+                // unfolded the literal has moved it.
+                collapseFolds()
+                // The IDE restores saved folds in a batch of its own, possibly after the first scan.
+                if (orphanFolds().isNotEmpty()) {
+                    ApplicationManager.getApplication().invokeLater({ removeOrphanFolds() }, { editor.isDisposed })
+                }
             }
         }, this)
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(AnActionListener.TOPIC, object : AnActionListener {
@@ -292,6 +296,11 @@ class EditorLensController private constructor(private val editor: Editor, priva
      * expands the fold (Expand, ⌘+).
      */
     private fun updateFoldExpansion() {
+        collapseFolds()
+        moveCaretsOutOfFolds()
+    }
+
+    private fun collapseFolds() {
         val changed = foldsToCollapse()
         if (changed.isEmpty()) return
         editor.foldingModel.runBatchFoldingOperation({
@@ -300,20 +309,28 @@ class EditorLensController private constructor(private val editor: Editor, priva
                 it.putUserData(SHOWN, null)
             }
         }, false, false)
-        // A caret left inside a folded literal would unfold it again, so move it out: past the literal if it moved
-        // forward into it on the same line (IdeaVim's l, which unfolds a fold as soon as it reaches its first
-        // character), else to its start, next to the swatch (h, or j/k from another line).
+    }
+
+    /**
+     * A caret inside a folded literal would unfold it again, and one on its first character looks like it didn't
+     * move, so move it out: past the literal if it stepped forward into it on the same line (IdeaVim's l, or l onto
+     * the first character), else to its start, next to the swatch (h, or j/k from another line).
+     */
+    private fun moveCaretsOutOfFolds() {
         val document = editor.document
+        val folds = elements.mapNotNull { it.fold }.filter { it.isValid && !it.isExpanded }
         for (caret in editor.caretModel.allCarets) {
             val offset = caret.offset
-            val fold = changed.firstOrNull { offset >= it.startOffset && offset < it.endOffset } ?: continue
-            val from = caret.getUserData(OFFSET_BEFORE_FOLD)
-            val forward = from != null && from < offset && from <= fold.startOffset && from <= document.textLength &&
+            val fold = folds.firstOrNull { offset >= it.startOffset && offset < it.endOffset } ?: continue
+            val from = caret.getUserData(SETTLED_OFFSET)
+            val sameLine = from != null && from <= document.textLength &&
                 document.getLineNumber(from) == document.getLineNumber(fold.startOffset)
+            val forward = sameLine && if (offset == fold.startOffset) from == offset - 1 else from!! <= fold.startOffset
             // After the swatch, which sits at the end of the literal; moveToOffset would put the caret before it.
             if (forward) caret.moveToVisualPosition(editor.offsetToVisualPosition(fold.endOffset, true, false))
             else if (offset > fold.startOffset) caret.moveToOffset(fold.startOffset)
         }
+        for (caret in editor.caretModel.allCarets) caret.putUserData(SETTLED_OFFSET, caret.offset)
     }
 
     /**
@@ -440,8 +457,11 @@ class EditorLensController private constructor(private val editor: Editor, priva
         /** Marks lens folds that the engine or the user expanded; see [foldsToCollapse]. */
         private val SHOWN = Key.create<Boolean>("chromabox.lens.fold.shown")
 
-        /** Where a caret was before it last moved, unless that was inside a lens fold. */
-        private val OFFSET_BEFORE_FOLD = Key.create<Int>("chromabox.caret.offset.before.fold")
+        /**
+         * Where a caret was once its last move settled. A command such as IdeaVim's l can unfold a literal and move
+         * the caret in several steps (folding moves the caret too), so the steps in between don't count.
+         */
+        private val SETTLED_OFFSET = Key.create<Int>("chromabox.caret.settled.offset")
 
         fun getOrCreate(editor: Editor, host: LensHost): EditorLensController {
             editor.getUserData(CONTROLLER)?.let { return it }
