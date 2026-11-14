@@ -17,6 +17,8 @@ import com.intellij.openapi.editor.event.EditorMouseEvent
 import com.intellij.openapi.editor.event.EditorMouseListener
 import com.intellij.openapi.editor.event.EditorMouseMotionListener
 import com.intellij.openapi.editor.ex.EditorEx
+import com.intellij.openapi.editor.ex.FoldingListener
+import com.intellij.openapi.editor.ex.FoldingModelEx
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileTypes.LanguageFileType
 import com.intellij.openapi.util.Disposer
@@ -91,10 +93,43 @@ class EditorLensController private constructor(private val editor: Editor, priva
                 (editor as? EditorEx)?.setCustomCursor(this@EditorLensController, cursor)
             }
         }, this)
+        (editor.foldingModel as? FoldingModelEx)?.addListener(object : FoldingListener {
+            // The IDE restores saved folds in a batch of its own, possibly after the first scan.
+            override fun onFoldProcessingEnd() {
+                if (orphanFolds().isEmpty()) return
+                ApplicationManager.getApplication().invokeLater({ removeOrphanFolds() }, { editor.isDisposed })
+            }
+        }, this)
         host.subscribe(this) {
             clear()
             scheduleRefresh(0)
         }
+    }
+
+    /**
+     * Folds the engine created in an earlier session. When an editor closes, the IDE saves its fold regions and
+     * restores them, collapsed, when the file opens again, so they hide literals that no controller tracks, in any
+     * presentation. Recognized by their empty placeholder (a user's own fold shows "...") and by covering exactly
+     * one literal of some lens.
+     */
+    private fun orphanFolds(): List<FoldRegion> {
+        val tracked = elements.mapNotNullTo(HashSet()) { it.fold }
+        val candidates = editor.foldingModel.allFoldRegions
+            .filter { it.isValid && it.placeholderText.isEmpty() && it !in tracked }
+        if (candidates.isEmpty()) return emptyList()
+        val document = editor.document
+        val file = FileDocumentManager.getInstance().getFile(document) ?: editor.virtualFile ?: return emptyList()
+        val context = LensContext(file.fileType, (file.fileType as? LanguageFileType)?.language, document)
+        return candidates.filter { fold ->
+            val text = document.getText(fold.textRange)
+            host.allLenses.any { it.find(text, context).singleOrNull()?.range == TextRange(0, text.length) }
+        }
+    }
+
+    private fun removeOrphanFolds() {
+        val orphans = orphanFolds()
+        if (orphans.isEmpty()) return
+        editor.foldingModel.runBatchFoldingOperation({ orphans.forEach(editor.foldingModel::removeFoldRegion) }, false, false)
     }
 
     /** What one scan found, for the document as of [stamp]. Null [matches] means the editor shows nothing. */
@@ -133,6 +168,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
         val document = editor.document
         // The document changed while scanning; the change already scheduled a newer scan.
         if (scan.stamp != document.modificationStamp) return
+        removeOrphanFolds()
         val presentation = scan.presentation
         val matches = scan.matches
         if (matches == null) {

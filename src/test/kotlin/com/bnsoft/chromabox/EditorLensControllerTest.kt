@@ -103,6 +103,47 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         assertEquals(listOf(TextRange(2, 9)), controller.foldedRanges)
     }
 
+    /** Adds collapsed folds like the ones the IDE restores from an earlier session: untracked, empty placeholder. */
+    private fun addRestoredFold(start: Int, end: Int, placeholder: String = "") {
+        val folding = myFixture.editor.foldingModel
+        folding.runBatchFoldingOperation { folding.addFoldRegion(start, end, placeholder)!!.isExpanded = false }
+    }
+
+    private fun foldsOf(range: TextRange) = myFixture.editor.foldingModel.allFoldRegions.filter { it.textRange == range }
+
+    fun `test folds restored from an earlier session are removed in every mode`() {
+        for (mode in DisplayMode.entries) {
+            settings.mode = mode
+            myFixture.configureByText("${mode.name}.md", "<caret>x #ff0000 and #00ff00")
+            EditorLensController.release(myFixture.editor)
+            addRestoredFold(2, 9)
+            addRestoredFold(14, 21, "...")
+            EditorLensController.getOrCreate(myFixture.editor, ChromaboxHost).refresh()
+
+            val restored = foldsOf(TextRange(2, 9))
+            if (mode == DisplayMode.BOX_ONLY) {
+                assertEquals(mode.name, 1, restored.size)
+                assertEquals(mode.name, true, restored.single().getUserData(EditorLensController.LENS_FOLD))
+            } else {
+                assertEmpty(mode.name, restored)
+            }
+            // A fold the user made over a color, with a visible placeholder, stays.
+            assertEquals(mode.name, "...", foldsOf(TextRange(14, 21)).single().placeholderText)
+            if (mode == DisplayMode.BOX_WITH_HEX) {
+                val inlay = myFixture.editor.inlayModel.getInlineElementsInRange(2, 2).single()
+                assertNotNull("swatch hidden", inlay.bounds)
+            }
+            EditorLensController.release(myFixture.editor)
+        }
+    }
+
+    fun `test folds restored after the first scan are removed too`() {
+        controllerFor("a.md", "<caret>x #ff0000 y", DisplayMode.BOX_WITH_HEX)
+        addRestoredFold(2, 9)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEmpty(foldsOf(TextRange(2, 9)))
+    }
+
     fun `test box only keeps hex next to the caret unfolded`() {
         val controller = controllerFor("a.md", "x <caret>#ff0000 and #00ff00", DisplayMode.BOX_ONLY)
         assertEquals(listOf(TextRange(14, 21)), controller.foldedRanges)
