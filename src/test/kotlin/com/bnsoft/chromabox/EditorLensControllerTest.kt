@@ -1,5 +1,6 @@
 package com.bnsoft.chromabox
 
+import com.bnsoft.chromabox.color.ChromaColor
 import com.bnsoft.chromabox.engine.EditorLensController
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -83,6 +84,20 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         assertEquals(listOf(TextRange(0, 4), TextRange(6, 13)), controller.matchRanges)
     }
 
+    fun `test css functions get swatches and keep their notation when picked`() {
+        val controller = controllerFor("a.md", "fg rgb(255, 0, 0) bg #fff", DisplayMode.BOX_WITH_HEX)
+        assertEquals(listOf(TextRange(3, 17), TextRange(21, 25)), controller.matchRanges)
+
+        val session = controller.editSessionAt(3)!!
+        session.apply(ChromaColor.fromAwt(Color(0, 255, 0, 0x80)))
+        session.dispose()
+        assertEquals("fg rgba(0, 255, 0, 0.5) bg #fff", myFixture.editor.document.text)
+
+        val fileEditor = FileEditorManager.getInstance(project).getSelectedEditor(myFixture.file.virtualFile) as TextEditor
+        UndoManager.getInstance(project).undo(fileEditor)
+        assertEquals("fg rgb(255, 0, 0) bg #fff", myFixture.editor.document.text)
+    }
+
     fun `test background refresh applies matches on the EDT`() {
         val controller = controllerFor("a.md", "<caret> #ff0000", DisplayMode.BOX_WITH_HEX)
         myFixture.type("#00f ")
@@ -93,11 +108,11 @@ class EditorLensControllerTest : BasePlatformTestCase() {
     fun `test picking colors rewrites hex and undoes in one step`() {
         val controller = controllerFor("a.md", "color: #F00;", DisplayMode.BOX_WITH_HEX)
         val session = controller.editSessionAt(8)!!
-        session.apply(Color(0x11, 0x22, 0x33))
+        session.apply(ChromaColor.fromAwt(Color(0x11, 0x22, 0x33)))
         assertEquals("color: #123;", myFixture.editor.document.text)
-        session.apply(Color(0x1E, 0x90, 0xFF))
+        session.apply(ChromaColor.fromAwt(Color(0x1E, 0x90, 0xFF)))
         assertEquals("color: #1E90FF;", myFixture.editor.document.text)
-        session.apply(Color(0x1E, 0x90, 0xFF, 0x80))
+        session.apply(ChromaColor.fromAwt(Color(0x1E, 0x90, 0xFF, 0x80)))
         assertEquals("color: #1E90FF80;", myFixture.editor.document.text)
         session.dispose()
 
