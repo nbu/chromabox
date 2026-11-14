@@ -18,7 +18,7 @@ object HexColorParser {
 
     fun findAll(text: CharSequence, shortForms: Boolean = true): List<ColorMatch> {
         val regex = if (shortForms) ANY else LONG
-        return regex.findAll(text).map { m ->
+        return regex.findAllAt(text, text.offsetsOf('#')).map { m ->
             val digits = m.groupValues[1]
             ColorMatch(TextRange(m.range.first, m.range.last + 1), parseDigits(digits), formatOf(digits))
         }.toList()

@@ -207,7 +207,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
         val context = context()
         if (presentation == LensPresentation.OFF || context == null) return Scan(stamp, presentation, null)
         val matches = LensScanner.scan(document.immutableCharSequence, context, host.lenses)
-        return Scan(stamp, presentation, matches.filterNot { host.isShownByIde(it, context) })
+        return Scan(stamp, presentation, host.withoutShownByIde(matches, context))
     }
 
     /** Keeps the elements whose literal didn't change, and replaces the rest. */

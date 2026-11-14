@@ -17,7 +17,8 @@ object IntegerColors {
     // Standalone, only 8 digits (C-01.5). Kotlin/Java suffixes like `u` or `L` may follow but aren't part of the color.
     private val STANDALONE = Regex("""(?<![\w.])0[xX][0-9a-fA-F]{8}(?=[uUlL]*(?![\w.]))""")
 
-    fun findAll(text: CharSequence, order: IntColorOrder): List<IntColorMatch> = STANDALONE.findAll(text).mapNotNull { m ->
+    fun findAll(text: CharSequence, order: IntColorOrder): List<IntColorMatch> = STANDALONE.findAllAt(text, text.offsetsOf('x', 'X').filter { it > 0 && text[it - 1] == '0' }.map { it - 1 })
+        .mapNotNull { m ->
         val (color, format) = parse(m.value, order) ?: return@mapNotNull null
         IntColorMatch(TextRange(m.range.first, m.range.last + 1), color, format)
     }.toList()

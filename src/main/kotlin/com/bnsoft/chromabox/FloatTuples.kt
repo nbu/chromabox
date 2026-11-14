@@ -18,7 +18,7 @@ object FloatTuples {
         """(?<![\w)\]])([\[(])\s*$FLOAT\s*,\s*$FLOAT(\s*,\s*)$FLOAT\s*(?:,\s*$FLOAT\s*)?([\])])""",
     )
 
-    fun findAll(text: CharSequence): List<FloatTupleMatch> = TUPLE.findAll(text).mapNotNull(::match).toList()
+    fun findAll(text: CharSequence): List<FloatTupleMatch> = TUPLE.findAllAt(text, text.offsetsOf('[', '(')).mapNotNull(::match).toList()
 
     fun parse(literal: String): Pair<ChromaColor, ConstructorFormat>? =
         TUPLE.matchEntire(literal)?.let(::match)?.let { it.color to it.format }

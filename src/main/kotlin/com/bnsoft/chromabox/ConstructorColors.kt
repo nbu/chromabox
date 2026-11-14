@@ -41,7 +41,23 @@ object ConstructorColors {
     private const val EXACT_DECIMALS = 6
 
     fun findAll(text: CharSequence): List<ConstructorColorMatch> =
-        listOf(HEX, FROM_ARGB, AWT, SWIFT).flatMap { regex -> regex.findAll(text).mapNotNull { match(it) } }
+        text.offsetsOf("Color").toList().let { colors ->
+            listOf(HEX to ::colorStart, FROM_ARGB to ::colorStart, AWT to ::newStart, SWIFT to ::swiftStart).flatMap { (regex, start) ->
+                regex.findAllAt(text, colors.asSequence().mapNotNull { start(text, it) }).mapNotNull { match(it) }.toList()
+            }
+        }
+
+    // Where each constructor can start, given an offset of "Color" in the text.
+    private fun colorStart(text: CharSequence, color: Int): Int = color
+
+    private fun swiftStart(text: CharSequence, color: Int): Int =
+        if (color >= 2 && (text.startsWith("UI", color - 2) || text.startsWith("NS", color - 2))) color - 2 else color
+
+    private fun newStart(text: CharSequence, color: Int): Int? {
+        var start = color
+        while (start > 0 && text[start - 1].isWhitespace()) start--
+        return if (start < color && start >= 3 && text.startsWith("new", start - 3)) start - 3 else null
+    }
 
     fun parse(literal: String): Pair<ChromaColor, ConstructorFormat>? =
         listOf(HEX, FROM_ARGB, AWT, SWIFT).firstNotNullOfOrNull { it.matchEntire(literal)?.let(::match) }

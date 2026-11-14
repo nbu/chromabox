@@ -75,18 +75,39 @@ object NamedColors {
         "yellowgreen" to 0x9acd32,
     )
 
-    // Longest names first, so "darkred" isn't matched as "red". Hyphens count as word characters, so "red-500" and
-    // "text-red" aren't names, and neither are variables and selectors like `$red`, `@red`, `#red`.
-    private val NAMES = Regex(
-        "(?<![\\w\\-$@#])(?:" + COLORS.keys.sortedByDescending { it.length }.joinToString("|") + ")(?![\\w-])",
-        RegexOption.IGNORE_CASE,
-    )
+    private val NAME_LENGTHS = COLORS.keys.minOf { it.length }..COLORS.keys.maxOf { it.length }
 
-    fun findAll(text: CharSequence): List<NamedColorMatch> = NAMES.findAll(text).mapNotNull { m ->
-        val (color, format) = parse(m.value) ?: return@mapNotNull null
-        val member = m.range.first > 0 && text[m.range.first - 1] == '.'
-        NamedColorMatch(TextRange(m.range.first, m.range.last + 1), color, format.copy(member = member))
-    }.toList()
+    /**
+     * Whole words that are names, in any case. Hyphens count as word characters, so "red-500" and "text-red" aren't
+     * names, and neither are variables and selectors like `$red`, `@red`, `#red`. A hand-written word scan, since a
+     * regex of 148 alternatives is too slow for large files (N-02).
+     */
+    fun findAll(text: CharSequence): List<NamedColorMatch> {
+        val matches = ArrayList<NamedColorMatch>()
+        var start = 0
+        while (start < text.length) {
+            if (!text[start].isAsciiLetter()) {
+                start++
+                continue
+            }
+            var end = start + 1
+            while (end < text.length && text[end].isAsciiLetter()) end++
+            val before = if (start > 0) text[start - 1] else ' '
+            val after = if (end < text.length) text[end] else ' '
+            if (end - start in NAME_LENGTHS && !before.isNameChar() && before !in "$@#" && !after.isNameChar()) {
+                parse(text.substring(start, end))?.let { (color, format) ->
+                    matches += NamedColorMatch(TextRange(start, end), color, format.copy(member = before == '.'))
+                }
+            }
+            start = end
+        }
+        return matches
+    }
+
+    private fun Char.isAsciiLetter() = this in 'a'..'z' || this in 'A'..'Z'
+
+    // Regex `\w` and the hyphen.
+    private fun Char.isNameChar() = isAsciiLetter() || this in '0'..'9' || this == '_' || this == '-'
 
     fun parse(literal: String): Pair<ChromaColor, NamedColorFormat>? {
         val rgb = COLORS[literal.lowercase()] ?: return null

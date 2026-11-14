@@ -32,10 +32,10 @@ interface LensHost {
     fun isExcluded(fileType: FileType): Boolean
 
     /**
-     * Whether the IDE already shows [match] in its own way, so the engine leaves it alone. Called during a scan, in a
-     * read action, with the document's PSI committed when the editor has a project.
+     * [matches] without those the IDE already shows in its own way, which the engine leaves alone. Called during a
+     * scan, in a read action, with the document's PSI committed when the editor has a project.
      */
-    fun isShownByIde(match: ScannedMatch<*>, context: LensContext): Boolean = false
+    fun withoutShownByIde(matches: List<ScannedMatch<*>>, context: LensContext): List<ScannedMatch<*>> = matches
 
     /** Calls [listener] whenever [presentation], [lenses] or exclusions may have changed, until [disposable] is disposed. */
     fun subscribe(disposable: Disposable, listener: () -> Unit)
