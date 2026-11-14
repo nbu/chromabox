@@ -174,6 +174,22 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         assertEquals(22, editor.caretModel.offset)
     }
 
+    fun `test box only moves a caret that another plugin puts inside a color in the direction it went`() {
+        val controller = controllerFor("a.md", "x #ff0000 y", DisplayMode.BOX_ONLY)
+        val editor = myFixture.editor
+        val fold = editor.foldingModel.allFoldRegions.single()
+        // IdeaVim's l from the start of the color, then h from its end.
+        for ((from, expected) in listOf(2 to 9, 9 to 2)) {
+            editor.caretModel.moveToOffset(from)
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            editor.foldingModel.runBatchFoldingOperation { fold.isExpanded = true }
+            editor.caretModel.moveToOffset(if (from == 2) 3 else 8)
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            assertEquals("from $from", expected, editor.caretModel.offset)
+            assertEquals(listOf(TextRange(2, 9)), controller.foldedRanges)
+        }
+    }
+
     fun `test box only keeps a selected color unfolded`() {
         val controller = controllerFor("a.md", "x #ff0000 y", DisplayMode.BOX_ONLY)
         val editor = myFixture.editor

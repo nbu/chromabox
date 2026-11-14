@@ -90,8 +90,16 @@ class EditorLensController private constructor(private val editor: Editor, priva
         }, this)
         editor.caretModel.addCaretListener(object : CaretListener {
             // Folding can't be changed from inside a caret event, so defer it.
-            override fun caretPositionChanged(event: CaretEvent) =
+            override fun caretPositionChanged(event: CaretEvent) {
+                val caret = event.caret
+                if (caret != null) {
+                    val old = editor.logicalPositionToOffset(event.oldPosition)
+                    if (elements.none { it.fold?.let { f -> f.isValid && old > f.startOffset && old < f.endOffset } == true }) {
+                        caret.putUserData(OFFSET_BEFORE_FOLD, old)
+                    }
+                }
                 ApplicationManager.getApplication().invokeLater({ updateFoldExpansion() }, { editor.isDisposed })
+            }
         }, this)
         editor.addEditorMouseListener(object : EditorMouseListener {
             override fun mousePressed(event: EditorMouseEvent) {
@@ -292,10 +300,15 @@ class EditorLensController private constructor(private val editor: Editor, priva
                 it.putUserData(SHOWN, null)
             }
         }, false, false)
-        // A caret left inside a folded literal would unfold it again, so put it before the literal, next to the swatch.
+        // A caret left inside a folded literal would unfold it again, so move it out: past the literal if it came from
+        // its start on the same line (IdeaVim's l), else to its start, next to the swatch (h, or j/k from another line).
+        val document = editor.document
         for (caret in editor.caretModel.allCarets) {
             val fold = changed.firstOrNull { caret.offset > it.startOffset && caret.offset < it.endOffset } ?: continue
-            caret.moveToOffset(fold.startOffset)
+            val from = caret.getUserData(OFFSET_BEFORE_FOLD)
+            val forward = from != null && from <= fold.startOffset && from <= document.textLength &&
+                document.getLineNumber(from) == document.getLineNumber(fold.startOffset)
+            caret.moveToOffset(if (forward) fold.endOffset else fold.startOffset)
         }
     }
 
@@ -422,6 +435,9 @@ class EditorLensController private constructor(private val editor: Editor, priva
 
         /** Marks lens folds that the engine or the user expanded; see [foldsToCollapse]. */
         private val SHOWN = Key.create<Boolean>("chromabox.lens.fold.shown")
+
+        /** Where a caret was before it last moved, unless that was inside a lens fold. */
+        private val OFFSET_BEFORE_FOLD = Key.create<Int>("chromabox.caret.offset.before.fold")
 
         fun getOrCreate(editor: Editor, host: LensHost): EditorLensController {
             editor.getUserData(CONTROLLER)?.let { return it }
