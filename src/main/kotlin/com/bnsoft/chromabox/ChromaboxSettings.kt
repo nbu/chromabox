@@ -53,6 +53,9 @@ class ChromaboxSettings : PersistentStateComponent<ChromaboxSettings.SettingsSta
         /** Channel order of standalone 8-digit `0x` colors (C-01.f). */
         var intOrder: IntColorOrder = IntColorOrder.ARGB
 
+        /** File types where float tuples are detected (C-01.7), comma-separated; empty for every file type. */
+        var floatTupleFileTypes: String = ""
+
         /** Lens id to on/off, only where it differs from [ColorFormat.enabledByDefault], so defaults can still change. */
         var lensOverrides: MutableMap<String, Boolean> = sortedMapOf()
     }
@@ -82,8 +85,12 @@ class ChromaboxSettings : PersistentStateComponent<ChromaboxSettings.SettingsSta
         if (enabled == default) myState.lensOverrides.remove(id) else myState.lensOverrides[id] = enabled
     }
 
-    fun isExcluded(fileType: FileType): Boolean =
-        myState.excludedFileTypes.split(',').any { it.trim().equals(fileType.name, ignoreCase = true) }
+    fun isExcluded(fileType: FileType): Boolean = fileType.isIn(myState.excludedFileTypes)
+
+    fun isFloatTupleFileType(fileType: FileType): Boolean =
+        myState.floatTupleFileTypes.isBlank() || fileType.isIn(myState.floatTupleFileTypes)
+
+    private fun FileType.isIn(names: String) = names.split(',').any { it.trim().equals(name, ignoreCase = true) }
 
     fun notifyChanged() {
         ApplicationManager.getApplication().messageBus.syncPublisher(ChromaboxSettingsListener.TOPIC).settingsChanged()

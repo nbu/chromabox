@@ -31,6 +31,8 @@
         <lens implementation="com.bnsoft.chromabox.CssColor4Lens"/>
         <lens implementation="com.bnsoft.chromabox.IntegerColorLens"/>
         <lens implementation="com.bnsoft.chromabox.ConstructorColorLens"/>
+        <lens implementation="com.bnsoft.chromabox.NamedColorLens"/>
+        <lens implementation="com.bnsoft.chromabox.FloatTupleLens"/>
     </extensions>
 
     <extensions defaultExtensionNs="com.intellij">
