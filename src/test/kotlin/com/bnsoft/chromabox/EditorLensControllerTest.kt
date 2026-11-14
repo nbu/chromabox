@@ -2,6 +2,7 @@ package com.bnsoft.chromabox
 
 import com.bnsoft.chromabox.color.ChromaColor
 import com.bnsoft.chromabox.engine.EditorLensController
+import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.TextEditor
@@ -60,6 +61,46 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         val inlays = myFixture.editor.inlayModel.getInlineElementsInRange(0, myFixture.editor.document.textLength)
         assertEquals(2, inlays.size)
         for (inlay in inlays) assertNotNull("inlay at ${inlay.offset} is hidden", inlay.bounds)
+    }
+
+    fun `test box only caret steps over a folded color without unfolding it`() {
+        val controller = controllerFor("a.md", "<caret>x #ff0000 y", DisplayMode.BOX_ONLY)
+        repeat(3) { myFixture.performEditorAction(IdeActions.ACTION_EDITOR_MOVE_CARET_RIGHT) }
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(9, myFixture.editor.caretModel.offset)
+        assertEquals(listOf(TextRange(2, 9)), controller.foldedRanges)
+    }
+
+    fun `test box only folds a typed color once the caret leaves it`() {
+        val controller = controllerFor("a.md", "x <caret>", DisplayMode.BOX_ONLY)
+        myFixture.type("#00f")
+        controller.refresh()
+        assertEmpty(controller.foldedRanges)
+        myFixture.type(" and more")
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(listOf(TextRange(2, 6)), controller.foldedRanges)
+    }
+
+    fun `test box only shows a folded color that an edit changes`() {
+        val controller = controllerFor("a.md", "<caret>x #ff0000 y", DisplayMode.BOX_ONLY)
+        myFixture.editor.caretModel.moveToOffset(9)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(listOf(TextRange(2, 9)), controller.foldedRanges)
+
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_BACKSPACE)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals("x #ff000 y", myFixture.editor.document.text)
+        assertEmpty(controller.foldedRanges)
+    }
+
+    fun `test box only typing right after a folded color keeps it folded`() {
+        val controller = controllerFor("a.md", "<caret>x #ff0000", DisplayMode.BOX_ONLY)
+        myFixture.editor.caretModel.moveToOffset(9)
+        myFixture.type(" y")
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        controller.refresh()
+        assertEquals("x #ff0000 y", myFixture.editor.document.text)
+        assertEquals(listOf(TextRange(2, 9)), controller.foldedRanges)
     }
 
     fun `test box only keeps hex next to the caret unfolded`() {

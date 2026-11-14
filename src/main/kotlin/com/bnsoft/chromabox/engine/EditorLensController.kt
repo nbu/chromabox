@@ -52,6 +52,22 @@ class EditorLensController private constructor(private val editor: Editor, priva
 
     init {
         editor.document.addDocumentListener(object : DocumentListener {
+            override fun beforeDocumentChange(event: DocumentEvent) {
+                // An edit that removes or replaces text of a folded literal (Backspace right after it, Delete right
+                // before it) would change text the user can't see, so show it. Folding can't change during a
+                // document change, so defer it; the caret is in the literal then, so it stays shown until it leaves.
+                val removed = TextRange(event.offset, event.offset + event.oldLength)
+                val touched = elements.mapNotNull { it.fold }
+                    .filter { it.isValid && !it.isExpanded && it.textRange.intersectsStrict(removed) }
+                if (touched.isEmpty()) return
+                ApplicationManager.getApplication().invokeLater({
+                    val folds = touched.filter { it.isValid && !it.isExpanded }
+                    if (folds.isNotEmpty()) {
+                        editor.foldingModel.runBatchFoldingOperation({ folds.forEach { it.isExpanded = true } }, false, false)
+                    }
+                }, { editor.isDisposed })
+            }
+
             override fun documentChanged(event: DocumentEvent) = scheduleRefresh()
         }, this)
         editor.caretModel.addCaretListener(object : CaretListener {
@@ -163,6 +179,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
         return LensContext(file.fileType, (file.fileType as? LanguageFileType)?.language, document)
     }
 
+    // A literal being typed stays visible until the caret leaves it, so it doesn't fold away mid-typing.
     private fun addFold(range: TextRange): FoldRegion? {
         val fold = editor.foldingModel.addFoldRegion(range.startOffset, range.endOffset, "") ?: return null
         fold.putUserData(LENS_FOLD, true)
@@ -170,13 +187,16 @@ class EditorLensController private constructor(private val editor: Editor, priva
         return fold
     }
 
-    /** In inlay-only mode, shows the literal while a caret touches it so it can still be edited by hand. */
+    /**
+     * In inlay-only mode, folds a literal again once no caret touches it. Never unfolds one: the caret steps over a
+     * folded literal like over one character, and its text shows only if the user expands the fold (Expand, ⌘+).
+     */
     private fun updateFoldExpansion() {
         val changed = elements.mapNotNull { it.fold }
-            .filter { it.isValid && it.isExpanded != isCaretNear(it.textRange) }
+            .filter { it.isValid && it.isExpanded && !isCaretNear(it.textRange) }
         if (changed.isEmpty()) return
         editor.foldingModel.runBatchFoldingOperation({
-            changed.forEach { it.isExpanded = !it.isExpanded }
+            changed.forEach { it.isExpanded = false }
         }, false, false)
     }
 
