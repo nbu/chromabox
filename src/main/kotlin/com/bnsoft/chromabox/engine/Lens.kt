@@ -36,4 +36,5 @@ interface LensEditor<V : Any> {
     fun format(value: V, original: LensMatch<V>): String?
 }
 
-data class LensContext(val fileType: FileType, val language: Language?, val document: Document)
+/** [project] is null for an editor outside a project. */
+data class LensContext(val fileType: FileType, val language: Language?, val document: Document, val project: Project? = null)

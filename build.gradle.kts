@@ -14,5 +14,8 @@ dependencies {
     intellijPlatform {
         intellijIdea("2026.2.4")
         testFramework(TestFrameworkType.Platform)
+        // Java's ElementColorProvider, for the test that AWT colors don't get a second swatch (C-01.g).
+        testBundledPlugin("com.intellij.java")
+        testFramework(TestFrameworkType.Plugin.Java)
     }
 }

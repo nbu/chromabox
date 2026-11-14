@@ -1,8 +1,10 @@
 package com.bnsoft.chromabox
 
 import com.bnsoft.chromabox.engine.Lens
+import com.bnsoft.chromabox.engine.LensContext
 import com.bnsoft.chromabox.engine.LensHost
 import com.bnsoft.chromabox.engine.LensPresentation
+import com.bnsoft.chromabox.engine.ScannedMatch
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.extensions.ExtensionPointName
@@ -31,6 +33,9 @@ object ChromaboxHost : LensHost {
     override val lenses: List<Lens<*>> get() = registeredLenses.filter { settings.isLensEnabled(it.id) }
 
     override fun isExcluded(fileType: FileType): Boolean = settings.isExcluded(fileType)
+
+    override fun isShownByIde(match: ScannedMatch<*>, context: LensContext): Boolean =
+        IdeColorSwatches.isShown(match.range, context)
 
     override fun subscribe(disposable: Disposable, listener: () -> Unit) {
         ApplicationManager.getApplication().messageBus.connect(disposable)
