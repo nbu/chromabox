@@ -5,7 +5,7 @@
     <vendor>bnsoft</vendor>
 
     <description><![CDATA[
-        <img src="https://raw.githubusercontent.com/nbu/chromabox/main/docs/chromabox-banner.png" width="640" alt="Chromabox"/><br>
+        <img src="https://raw.githubusercontent.com/nbu/chromabox/main/docs/chromabox-banner.png" width="1280" height="800" alt="Chromabox"/><br>
         Renders hex colors (<code>#RGB</code>, <code>#RGBA</code>, <code>#RRGGBB</code>, <code>#RRGGBBAA</code>)
         as color swatches in any text file, such as Markdown or CSV.<br>
         Click a swatch to pick a new color; the hex value in the file is updated.<br>
