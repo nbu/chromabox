@@ -23,7 +23,10 @@ object ChromaboxHost : LensHost {
             DisplayMode.OFF -> LensPresentation.OFF
         }
 
-    override val lenses: List<Lens<*>> get() = LENS_EP.extensionList
+    /** Every registered lens, including disabled ones. */
+    val registeredLenses: List<Lens<*>> get() = LENS_EP.extensionList
+
+    override val lenses: List<Lens<*>> get() = registeredLenses.filter { settings.isLensEnabled(it.id) }
 
     override fun isExcluded(fileType: FileType): Boolean = settings.isExcluded(fileType)
 
