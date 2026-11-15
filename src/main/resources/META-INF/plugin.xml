@@ -25,6 +25,7 @@
         Contrast badges show the WCAG ratio of colors that belong together, such as <code>fg</code> and
         <code>bg</code> keys, or two colors on one line: <code>4.6:1 AA</code>. Hover a badge for details and a
         <b>Fix</b> that adjusts the foreground's lightness until it passes.<br>
+        The Markdown preview shows swatches too.<br>
         <em>Simulate Color Vision</em> draws swatches and contrast badges as people with protanopia, deuteranopia,
         tritanopia or achromatopsia see them.<br>
         Display modes: swatch only, swatch with the color text, gutter icons, or off (<em>View | Chromabox</em> or
@@ -33,6 +34,7 @@
         ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends optional="true" config-file="chromabox-markdown.xml">org.intellij.plugins.markdown</depends>
 
     <resource-bundle>messages.ChromaboxBundle</resource-bundle>
 
