@@ -72,6 +72,9 @@ class ChromaboxSettings : PersistentStateComponent<ChromaboxSettings.SettingsSta
         /** APCA lightness contrast in the contrast popup (C-02.6). */
         var showApca: Boolean = false
 
+        /** Swatches in the Markdown preview (C-07.7). */
+        var showInMarkdownPreview: Boolean = true
+
         /** Whether [simulation] is kept across restarts (C-05.5); otherwise every session starts without one. */
         var rememberSimulation: Boolean = false
 

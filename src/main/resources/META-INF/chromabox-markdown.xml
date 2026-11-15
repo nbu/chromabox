@@ -1,0 +1,6 @@
+<!-- Loaded only with the Markdown plugin (C-07.2). -->
+<idea-plugin>
+    <extensions defaultExtensionNs="org.intellij.markdown">
+        <browserPreviewExtensionProvider implementation="com.bnsoft.chromabox.markdown.ChromaboxPreviewExtension$Provider"/>
+    </extensions>
+</idea-plugin>

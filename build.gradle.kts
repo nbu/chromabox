@@ -14,10 +14,11 @@ dependencies {
     intellijPlatform {
         intellijIdea("2026.2.4")
         testFramework(TestFrameworkType.Platform)
+        // Optional: swatches in the Markdown preview (C-07).
+        bundledPlugin("org.intellij.plugins.markdown")
         // Java's ElementColorProvider, for the test that AWT colors don't get a second swatch (C-01.g).
         testBundledPlugin("com.intellij.java")
         // CSS in Markdown code fences, which the IDE shows swatches for itself.
-        testBundledPlugin("org.intellij.plugins.markdown")
         testBundledPlugin("com.intellij.css")
         testFramework(TestFrameworkType.Plugin.Java)
     }

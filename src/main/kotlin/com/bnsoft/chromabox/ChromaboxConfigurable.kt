@@ -1,5 +1,7 @@
 package com.bnsoft.chromabox
 
+import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.components.JBCheckBox
@@ -75,6 +77,15 @@ class ChromaboxConfigurable : BoundConfigurable(ChromaboxBundle.message("setting
                 checkBox(ChromaboxBundle.message("settings.showApca"))
                     .bindSelected(state::showApca)
                     .comment(ChromaboxBundle.message("settings.showApca.comment"))
+            }
+        }
+        if (PluginManagerCore.getPlugin(PluginId.getId("org.intellij.plugins.markdown"))?.isEnabled == true) {
+            group(ChromaboxBundle.message("settings.markdownPreview")) {
+                row {
+                    checkBox(ChromaboxBundle.message("settings.showInMarkdownPreview"))
+                        .bindSelected(state::showInMarkdownPreview)
+                        .comment(ChromaboxBundle.message("settings.showInMarkdownPreview.comment"))
+                }
             }
         }
         group(ChromaboxBundle.message("settings.simulation")) {
