@@ -23,6 +23,10 @@ object ContrastPairs {
 
     private val TOML_HEADER = Regex("""\[[^\[\]]+]\s*""")
 
+    /** Two colors without keys, in text order: the translucent one is the foreground if just one is, else [first]. */
+    fun of(first: ColorAt, second: ColorAt): ContrastPair =
+        if (second.color.alpha < 1 && first.color.alpha >= 1) ContrastPair(second, first) else ContrastPair(first, second)
+
     fun find(text: CharSequence, colors: List<ColorAt>): List<ContrastPair> {
         val sorted = colors.sortedBy { it.range.startOffset }
         val paired = HashSet<ColorAt>()
@@ -102,7 +106,7 @@ object ContrastPairs {
             if (line.size == 2 && line.none { it in paired }) {
                 val (a, b) = line
                 // The translucent one is the foreground, if just one is.
-                pairs += if (b.color.alpha < 1 && a.color.alpha >= 1) ContrastPair(b, a) else ContrastPair(a, b)
+                pairs += of(a, b)
             }
             i = j
         }

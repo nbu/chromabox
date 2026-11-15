@@ -25,5 +25,8 @@
   menu). In gutter mode, a line's icon shows up to four colors; click it to pick one.
 - Contrast badges with the WCAG 2.2 ratio and level (`4.6:1 AA`) after colors that belong together: foreground and
   background keys in one block, or two colors on one line. Shown always, only when failing, or never.
+- Contrast popup on a badge, or for any two colors with _Chromabox | Check Contrast_: results for normal text, large
+  text and UI components, sample text, optional APCA, and a fix that adjusts the foreground's lightness to reach AA or
+  AAA.
 - Colors the IDE already shows a swatch for, such as AWT colors in Java, don't get a second one. CSS-like file types
   are skipped by default; the list is editable in settings.

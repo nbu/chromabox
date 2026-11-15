@@ -14,7 +14,9 @@ object ContrastAnnotations {
         return ContrastPairs.find(text, colors).mapNotNull { pair ->
             val result = Contrast.of(pair.foreground.color, pair.background.color)
             if (setting == ContrastBadges.ONLY_FAILING && result.ratio >= ContrastResult.AA) return@mapNotNull null
-            LensAnnotation(pair.second.range.endOffset, result, ContrastBadgeRenderer(result))
+            LensAnnotation(pair.second.range.endOffset, result, ContrastBadgeRenderer(result)) { access, location ->
+                ContrastPopup.show(access, pair, location)
+            }
         }
     }
 }
