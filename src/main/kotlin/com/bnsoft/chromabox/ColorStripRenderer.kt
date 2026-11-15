@@ -18,7 +18,8 @@ import javax.swing.Icon
 
 /**
  * A wide rounded strip, about three swatches wide: a gradient with its stops at their positions (C-04.1), or, with
- * [segments], equal blocks of each color, for a color sequence (C-04.3). In the gutter, a square icon.
+ * [segments], equal blocks of each color, for a color sequence (C-04.3). In the gutter, a square icon. Colors are
+ * drawn as they look with the current color vision simulation (C-05).
  */
 class ColorStripRenderer(val stops: List<Pair<Double, Color>>, private val segments: Boolean = false) : EditorCustomElementRenderer, Icon {
     override fun calcWidthInPixels(inlay: Inlay<*>): Int = stripWidth(height(inlay)) + JBUI.scale(GAP)
@@ -35,6 +36,7 @@ class ColorStripRenderer(val stops: List<Pair<Double, Color>>, private val segme
     override fun paintIcon(c: Component?, g: Graphics, x: Int, y: Int) = paintStrip(g, x.toDouble(), y.toDouble(), iconWidth, iconHeight)
 
     private fun paintStrip(g: Graphics, x: Double, y: Double, width: Int, height: Int) {
+        val colors = stops.map { ColorVisionSimulation.simulated(it.second) }
         val arc = JBUI.scale(3).toDouble()
         val shape = RoundRectangle2D.Double(x, y, width.toDouble(), height.toDouble(), arc, arc)
         val g2 = g.create() as Graphics2D
@@ -42,14 +44,14 @@ class ColorStripRenderer(val stops: List<Pair<Double, Color>>, private val segme
             GraphicsUtil.setupAAPainting(g2)
             val clip = g2.clip
             g2.clip(shape)
-            if (stops.any { it.second.alpha < 255 }) paintCheckerboard(g2, x, y, width, height)
+            if (colors.any { it.alpha < 255 }) paintCheckerboard(g2, x, y, width, height)
             if (segments) {
-                for ((i, stop) in stops.withIndex()) {
-                    g2.color = stop.second
+                for ((i, color) in colors.withIndex()) {
+                    g2.color = color
                     g2.fill(Rectangle2D.Double(x + width * i / stops.size.toDouble(), y, width / stops.size.toDouble() + 1, height.toDouble()))
                 }
             } else {
-                g2.paint = paint(x, width)
+                g2.paint = paint(x, width, colors)
                 g2.fill(shape)
             }
             g2.clip = clip
@@ -61,7 +63,7 @@ class ColorStripRenderer(val stops: List<Pair<Double, Color>>, private val segme
     }
 
     // LinearGradientPaint needs strictly increasing fractions in 0..1, so equal positions (hard stops) are nudged.
-    private fun paint(x: Double, width: Int): LinearGradientPaint {
+    private fun paint(x: Double, width: Int, colors: List<Color>): LinearGradientPaint {
         val fractions = FloatArray(stops.size)
         var previous = -1f
         for ((i, stop) in stops.withIndex()) {
@@ -72,7 +74,7 @@ class ColorStripRenderer(val stops: List<Pair<Double, Color>>, private val segme
         // Nudging can push the last ones past 1; scale them back, keeping their order.
         val last = fractions.last()
         if (last > 1f) for (i in fractions.indices) fractions[i] /= last
-        return LinearGradientPaint(x.toFloat(), 0f, (x + width).toFloat(), 0f, fractions, stops.map { it.second }.toTypedArray())
+        return LinearGradientPaint(x.toFloat(), 0f, (x + width).toFloat(), 0f, fractions, colors.toTypedArray())
     }
 
     private fun paintCheckerboard(g2: Graphics2D, x: Double, y: Double, width: Int, height: Int) {

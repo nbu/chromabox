@@ -1,6 +1,7 @@
 package com.bnsoft.chromabox
 
 import com.bnsoft.chromabox.color.ChromaColor
+import com.bnsoft.chromabox.color.ColorVision
 import com.bnsoft.chromabox.engine.EditorLensController
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.command.undo.UndoManager
@@ -70,6 +71,23 @@ class ContrastPopupTest : BasePlatformTestCase() {
         assertEquals(1, links.size)
         val black = controllerFor("#000000 on #ffffff")
         assertEmpty(UIUtil.findComponentsOfType(ContrastPopup.content(pairAt(black)) {}, ActionLink::class.java))
+    }
+
+    fun `test with a simulation, the popup shows the simulated contrast and fixes for both`() {
+        val pair = pairAt(controllerFor("#ff0000 on #000000"))
+        // Passes AA as it is.
+        assertEquals(1, UIUtil.findComponentsOfType(ContrastPopup.content(pair) {}, ActionLink::class.java).size)
+        try {
+            ColorVisionSimulation.select(ColorVision.PROTANOPIA)
+            val content = ContrastPopup.content(pair) {}
+            val labels = UIUtil.findComponentsOfType(content, javax.swing.JLabel::class.java).mapNotNull { it.text }
+            assertTrue(labels.toString(), labels.any { "3.2:1" in it })
+            val comments = UIUtil.findComponentsOfType(content, javax.swing.text.JTextComponent::class.java).map { it.text }
+            assertTrue(comments.toString(), comments.any { "Simulating protanopia" in it && "5.2:1" in it })
+            assertEquals(2, UIUtil.findComponentsOfType(content, ActionLink::class.java).size)
+        } finally {
+            ColorVisionSimulation.select(ColorVision.NONE)
+        }
     }
 
     fun `test the badge opens the popup for its pair, also after an edit moves it`() {

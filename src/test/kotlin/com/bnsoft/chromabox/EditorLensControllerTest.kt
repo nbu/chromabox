@@ -1,6 +1,7 @@
 package com.bnsoft.chromabox
 
 import com.bnsoft.chromabox.color.ChromaColor
+import com.bnsoft.chromabox.color.ColorVision
 import com.bnsoft.chromabox.engine.EditorLensController
 import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.command.WriteCommandAction
@@ -329,6 +330,24 @@ class EditorLensControllerTest : BasePlatformTestCase() {
             assertEmpty(badges(controller))
         } finally {
             settings.state.contrastBadges = saved
+        }
+    }
+
+    fun `test with a simulation, badges show the simulated contrast and say so`() {
+        val controller = controllerFor("a.md", "#ff0000 #000000", DisplayMode.BOX_WITH_HEX)
+        assertEquals(listOf(15 to "5.2:1 AA"), badges(controller))
+        try {
+            ColorVisionSimulation.select(ColorVision.PROTANOPIA)
+            controller.refresh()
+            assertEquals(listOf(15 to "3.2:1 AA Large \u00b7 protan"), badges(controller))
+            ColorVisionSimulation.select(ColorVision.ACHROMATOPSIA)
+            controller.refresh()
+            assertEquals(listOf(15 to "5.2:1 AA \u00b7 achroma"), badges(controller))
+            SimulateNoneAction().actionPerformed(TestActionEvent.createTestEvent())
+            controller.refresh()
+            assertEquals(listOf(15 to "5.2:1 AA"), badges(controller))
+        } finally {
+            ColorVisionSimulation.select(ColorVision.NONE)
         }
     }
 

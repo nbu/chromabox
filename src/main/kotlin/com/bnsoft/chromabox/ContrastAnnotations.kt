@@ -6,15 +6,19 @@ import com.bnsoft.chromabox.color.ContrastResult
 import com.bnsoft.chromabox.engine.LensAnnotation
 import com.bnsoft.chromabox.engine.ScannedMatch
 
-/** Contrast badges for the colors of one scan (C-02): one after each pair of colors that belong together. */
+/**
+ * Contrast badges for the colors of one scan (C-02): one after each pair of colors that belong together. With a color
+ * vision simulation on, of the colors as they look with it (C-05.4).
+ */
 object ContrastAnnotations {
     fun of(matches: List<ScannedMatch<*>>, text: CharSequence, setting: ContrastBadges): List<LensAnnotation> {
         if (setting == ContrastBadges.OFF) return emptyList()
+        val vision = ChromaboxSettings.getInstance().simulation
         val colors = matches.mapNotNull { m -> (m.match.value as? ChromaColor)?.let { ColorAt(m.range, it) } }
         return ContrastPairs.find(text, colors).mapNotNull { pair ->
-            val result = Contrast.of(pair.foreground.color, pair.background.color)
+            val result = Contrast.of(pair.foreground.color, pair.background.color, vision)
             if (setting == ContrastBadges.ONLY_FAILING && result.ratio >= ContrastResult.AA) return@mapNotNull null
-            LensAnnotation(pair.second.range.endOffset, result, ContrastBadgeRenderer(result)) { access, location ->
+            LensAnnotation(pair.second.range.endOffset, result to vision, ContrastBadgeRenderer(result, vision)) { access, location ->
                 ContrastPopup.show(access, pair, location)
             }
         }

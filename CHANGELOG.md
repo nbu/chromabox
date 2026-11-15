@@ -31,5 +31,8 @@
 - Contrast popup on a badge, or for any two colors with _Chromabox | Check Contrast_: results for normal text, large
   text and UI components, sample text, optional APCA, and a fix that adjusts the foreground's lightness to reach AA or
   AAA.
+- Color vision simulation (_Chromabox | Simulate Color Vision_): protanopia, deuteranopia, tritanopia or
+  achromatopsia. Swatches, gradients and gutter icons are drawn as they'd look, and contrast badges show the
+  simulated ratio. The status bar shows the active simulation. It lasts a session unless kept in settings.
 - Colors the IDE already shows a swatch for, such as AWT colors in Java, don't get a second one. CSS-like file types
   are skipped by default; the list is editable in settings.

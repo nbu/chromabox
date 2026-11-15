@@ -63,11 +63,15 @@ object Contrast {
         return ChromaColor(mix(front.r, back.r), mix(front.g, back.g), mix(front.b, back.b))
     }
 
-    /** [foreground] composited over [background]; a translucent background is composited over white first. */
-    fun of(foreground: ChromaColor, background: ChromaColor): ContrastResult {
+    /**
+     * [foreground] composited over [background]; a translucent background is composited over white first. With
+     * [vision], the ratio of the blended colors as they look with that deficiency (C-05.4).
+     */
+    fun of(foreground: ChromaColor, background: ChromaColor, vision: ColorVision = ColorVision.NONE): ContrastResult {
         val translucent = background.alpha < 1
         val back = composite(background, WHITE)
-        return ContrastResult(ratio(composite(foreground, back), back), translucent)
+        val front = composite(foreground, back)
+        return ContrastResult(ratio(vision.simulate(front), vision.simulate(back)), translucent)
     }
 }
 
@@ -107,16 +111,19 @@ object ContrastFix {
 
     /**
      * The color nearest to [foreground] that reaches [target] against [background], changing only its OKLCH lightness,
-     * so hue, chroma and alpha stay. Rounded to 8 bits per channel, so the written color reaches [target] too. Null if
-     * [foreground] already reaches it, or no lightness does.
+     * so hue, chroma and alpha stay. Rounded to 8 bits per channel, so the written color reaches [target] too. With
+     * [vision], it must reach [target] both as it is and as it looks with that deficiency. Null if [foreground]
+     * already reaches it, or no lightness does.
      */
-    fun suggest(foreground: ChromaColor, background: ChromaColor, target: Double): ChromaColor? {
-        if (Contrast.of(foreground, background).ratio >= target) return null
+    fun suggest(foreground: ChromaColor, background: ChromaColor, target: Double, vision: ColorVision = ColorVision.NONE): ChromaColor? {
+        fun reaches(color: ChromaColor) =
+            Contrast.of(color, background).ratio >= target && Contrast.of(color, background, vision).ratio >= target
+        if (reaches(foreground)) return null
         val oklch = ColorSpaces.toOklch(foreground)
         fun at(l: Double): ChromaColor? {
             if (l < 0 || l > 1) return null
             val color = ChromaColor.fromAwt(ColorSpaces.fromOklch(Oklch(l, oklch.c, oklch.h), foreground.alpha).toAwt())
-            return color.takeIf { Contrast.of(it, background).ratio >= target }
+            return color.takeIf(::reaches)
         }
         // Nearest first: one step lighter, one step darker, two steps lighter, and so on.
         for (step in 1..(1 / STEP).toInt()) {

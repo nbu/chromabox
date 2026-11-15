@@ -1,5 +1,6 @@
 package com.bnsoft.chromabox
 
+import com.bnsoft.chromabox.color.ColorVision
 import com.bnsoft.chromabox.engine.EditorLensController
 import com.intellij.openapi.util.JDOMUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
@@ -81,5 +82,21 @@ class ChromaboxSettingsTest : BasePlatformTestCase() {
         settings.notifyChanged()
         controller.refresh()
         assertEmpty(controller.matchRanges)
+    }
+
+    fun `test the simulation lasts a session unless remembered`() {
+        settings.setSimulation(ColorVision.DEUTERANOPIA)
+        assertEquals(ColorVision.NONE, copy(settings.state).simulation)
+        settings.loadState(copy(settings.state))
+        assertEquals(ColorVision.NONE, settings.simulation)
+
+        settings.setSimulation(ColorVision.TRITANOPIA)
+        settings.rememberSimulation = true
+        settings.loadState(copy(settings.state))
+        assertEquals(ColorVision.TRITANOPIA, settings.simulation)
+
+        settings.rememberSimulation = false
+        settings.loadState(copy(settings.state))
+        assertEquals(ColorVision.NONE, settings.simulation)
     }
 }
