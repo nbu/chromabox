@@ -338,6 +338,37 @@ class EditorLensControllerTest : BasePlatformTestCase() {
         assertEmpty(myFixture.editor.inlayModel.getInlineElementsInRange(0, 15))
     }
 
+    fun `test a gradient gets one strip instead of a swatch per stop, and edits one stop`() {
+        val text = "bg: linear-gradient(to right, #ff0000, rgb(0 0 255) 80%)"
+        val controller = controllerFor("a.md", text, DisplayMode.BOX_WITH_HEX)
+        assertEquals(listOf(TextRange(4, text.length)), controller.matchRanges)
+        val inlay = myFixture.editor.inlayModel.getInlineElementsInRange(0, text.length).single()
+        assertEquals(listOf(0.0 to java.awt.Color(255, 0, 0), 0.8 to java.awt.Color(0, 0, 255)), (inlay.renderer as ColorStripRenderer).stops)
+
+        val session = controller.editSessionAt(4)!!
+        val gradient = Gradients.parse(text.substring(4))!!
+        session.apply(gradient.withColor(1, ChromaColor.fromRgb255(0, 128, 0)))
+        assertEquals("bg: linear-gradient(to right, #ff0000, rgb(0 128 0) 80%)", myFixture.editor.document.text)
+    }
+
+    fun `test color sequences get a strip only once enabled`() {
+        val text = "#111111, #222222, #333333"
+        val controller = controllerFor("a.md", text, DisplayMode.BOX_WITH_HEX)
+        assertEmpty(controller.annotationInlays)
+        try {
+            settings.setLensEnabled(ColorFormat.COLOR_SEQUENCES.lensId, true)
+            settings.notifyChanged()
+            controller.refresh()
+            val strip = controller.annotationInlays.single()
+            assertEquals(text.length, strip.offset)
+            assertEquals(3, (strip.renderer as ColorStripRenderer).stops.size)
+            assertEquals(3, myFixture.editor.inlayModel.getInlineElementsInRange(0, text.length, ColorSwatchRenderer::class.java).size)
+        } finally {
+            settings.setLensEnabled(ColorFormat.COLOR_SEQUENCES.lensId, false)
+            settings.notifyChanged()
+        }
+    }
+
     fun `test off removes swatches`() {
         val controller = controllerFor("a.md", "#ff0000", DisplayMode.BOX_WITH_HEX)
         assertEquals(1, controller.matchRanges.size)

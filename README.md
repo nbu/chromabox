@@ -20,10 +20,18 @@ undo reverts the whole pick.
 | Language constructors | `Color(0xFF112233)`, `Color.fromARGB(255, 1, 2, 3)`, `new Color(1, 2, 3)`, `UIColor(red: 0.1, green: 0.2, blue: 0.3, alpha: 1)` | On |
 | Named colors | `tomato`, `rebeccapurple` | Off |
 | Float tuples | `[0.1, 0.2, 0.3]`, `(1.0, 0.5, 0.0, 1.0)` | Off |
+| CSS gradients | `linear-gradient(to right, #fff, rgb(0 0 0 / 50%))`, `radial-gradient()`, `conic-gradient()`, `repeating-` ones | On |
+| Color sequences | `#264653, #2a9d8f, #e9c46a`, `red → orange → yellow` | Off |
 
 Writing back keeps the function name, separators, units, number style and case. If the picked color has alpha and
 the original doesn't, alpha is added in the same notation: `rgb(1, 2, 3)` becomes `rgba(1, 2, 3, 0.5)`. Colors in
 CSS Color 4 spaces that are outside sRGB are drawn clamped, with a small "out of gamut" mark.
+
+A CSS gradient gets one wide swatch showing the gradient, with its stops at their positions, instead of a swatch per
+stop. Click it to choose a stop, then pick its color; only that stop is rewritten, in its own notation. Stops in
+notations Chromabox doesn't edit, such as `transparent`, are drawn but can't be picked, and stops it can't read, such
+as `var(--accent)`, are left out. Three or more colors in a row, separated by commas, spaces or arrows, can get a strip
+of their colors after the last one; turn on _Color sequences_ in settings. Each color keeps its own swatch.
 
 Display modes (_View | Chromabox_, the editor context menu, or _Settings | Tools | Chromabox_):
 

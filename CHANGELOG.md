@@ -19,6 +19,9 @@
     UIKit, AppKit and SwiftUI `UIColor(red:green:blue:alpha:)`.
   - Named CSS colors like `tomato`, off by default.
   - Float tuples like `[0.1, 0.2, 0.3]`, off by default, optionally only in chosen file types.
+  - CSS gradients `linear-gradient()`, `radial-gradient()`, `conic-gradient()` and their `repeating-` forms, as one
+    wide swatch. Click it to pick one stop's color; only that stop is rewritten.
+  - Color sequences: three or more colors in a row get a strip of their colors after the last one, off by default.
 - A picked color is written back in the notation it was written in: function, separators, units, number style and
   case. Alpha is added in the same notation when the picked color has it.
 - Display modes: swatch only, swatch and color text, gutter icons, off (_View | Chromabox_ or the editor context

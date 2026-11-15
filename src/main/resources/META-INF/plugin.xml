@@ -18,6 +18,9 @@
             UIKit and SwiftUI <code>UIColor(red: 0.1, green: 0.2, blue: 0.3, alpha: 1)</code></li>
           <li>Named colors (off by default): <code>tomato</code>, <code>rebeccapurple</code></li>
           <li>Float tuples (off by default): <code>[0.1, 0.2, 0.3]</code></li>
+          <li>CSS gradients: <code>linear-gradient(to right, #fff, #000)</code>, <code>radial-gradient()</code>,
+            <code>conic-gradient()</code>, as one wide swatch; click it to edit a stop</li>
+          <li>Color sequences (off by default): a strip after three or more colors in a row, like <code>#264653, #2a9d8f, #e9c46a</code></li>
         </ul>
         Contrast badges show the WCAG ratio of colors that belong together, such as <code>fg</code> and
         <code>bg</code> keys, or two colors on one line: <code>4.6:1 AA</code>. Hover a badge for details and a
@@ -46,6 +49,7 @@
         <lens implementation="com.bnsoft.chromabox.ConstructorColorLens"/>
         <lens implementation="com.bnsoft.chromabox.NamedColorLens"/>
         <lens implementation="com.bnsoft.chromabox.FloatTupleLens"/>
+        <lens implementation="com.bnsoft.chromabox.GradientLens"/>
     </extensions>
 
     <extensions defaultExtensionNs="com.intellij">
