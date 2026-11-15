@@ -70,3 +70,58 @@ object Contrast {
         return ContrastResult(ratio(composite(foreground, back), back), translucent)
     }
 }
+
+/**
+ * APCA (C-02.6), version 0.0.98G-4g: the lightness contrast Lc of [text] on the opaque [background], about -108 to
+ * 106. Positive for dark text on a light background, negative for light text on a dark one.
+ */
+object Apca {
+    fun lc(text: ChromaColor, background: ChromaColor): Double {
+        val yText = clampBlack(y(text))
+        val yBack = clampBlack(y(background))
+        if (kotlin.math.abs(yBack - yText) < 0.0005) return 0.0
+        val sapc = if (yBack > yText) {
+            (Math.pow(yBack, 0.56) - Math.pow(yText, 0.57)) * 1.14
+        } else {
+            (Math.pow(yBack, 0.65) - Math.pow(yText, 0.62)) * 1.14
+        }
+        val lc = when {
+            yBack > yText -> if (sapc < 0.1) 0.0 else sapc - 0.027
+            else -> if (sapc > -0.1) 0.0 else sapc + 0.027
+        }
+        return lc * 100
+    }
+
+    // APCA linearizes with a plain 2.4 power and its own coefficients, unlike WCAG.
+    private fun y(color: ChromaColor): Double {
+        fun c(v: Double) = Math.pow(v.coerceIn(0.0, 1.0), 2.4)
+        return 0.2126729 * c(color.r) + 0.7151522 * c(color.g) + 0.0721750 * c(color.b)
+    }
+
+    private fun clampBlack(y: Double) = if (y < 0.022) y + Math.pow(0.022 - y, 1.414) else y
+}
+
+/** Suggests colors that reach a contrast ratio (C-02.4). */
+object ContrastFix {
+    private const val STEP = 0.0025
+
+    /**
+     * The color nearest to [foreground] that reaches [target] against [background], changing only its OKLCH lightness,
+     * so hue, chroma and alpha stay. Rounded to 8 bits per channel, so the written color reaches [target] too. Null if
+     * [foreground] already reaches it, or no lightness does.
+     */
+    fun suggest(foreground: ChromaColor, background: ChromaColor, target: Double): ChromaColor? {
+        if (Contrast.of(foreground, background).ratio >= target) return null
+        val oklch = ColorSpaces.toOklch(foreground)
+        fun at(l: Double): ChromaColor? {
+            if (l < 0 || l > 1) return null
+            val color = ChromaColor.fromAwt(ColorSpaces.fromOklch(Oklch(l, oklch.c, oklch.h), foreground.alpha).toAwt())
+            return color.takeIf { Contrast.of(it, background).ratio >= target }
+        }
+        // Nearest first: one step lighter, one step darker, two steps lighter, and so on.
+        for (step in 1..(1 / STEP).toInt()) {
+            (at(oklch.l + step * STEP) ?: at(oklch.l - step * STEP))?.let { return it }
+        }
+        return null
+    }
+}

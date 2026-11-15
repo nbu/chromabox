@@ -71,6 +71,11 @@ class ChromaboxConfigurable : BoundConfigurable(ChromaboxBundle.message("setting
                     for (badges in ContrastBadges.entries) radioButton(ChromaboxBundle.message("contrastBadges.${badges.name}"), badges)
                 }.comment(ChromaboxBundle.message("settings.contrastBadges.comment"))
             }.bind(state::contrastBadges)
+            row {
+                checkBox(ChromaboxBundle.message("settings.showApca"))
+                    .bindSelected(state::showApca)
+                    .comment(ChromaboxBundle.message("settings.showApca.comment"))
+            }
         }
         row(ChromaboxBundle.message("settings.excludedFileTypes")) {
             textField()

@@ -40,6 +40,11 @@ second color: a foreground and background key in one block (`fg`/`bg`, `foregrou
 A translucent foreground is blended over its background; a translucent background makes the ratio approximate
 (`~4.6:1`). Badges can be shown always, only when failing AA, or never.
 
+Hover or click a badge for details: results for normal text, large text and UI components, sample text, and, if
+turned on in settings, the APCA lightness contrast (Lc). **Fix** changes the foreground's lightness, keeping its hue
+and chroma, to the nearest color that reaches AA or AAA, and writes it in the same notation; one undo reverts it. To
+check any two colors, put a caret on each (or select both) and use _Chromabox | Check Contrast_.
+
 Each format can be turned on or off in _Settings | Tools | Chromabox | Formats_. Short hex forms (`#RGB`, `#RGBA`) can
 be turned off if hashtags like `#bad` or `#cafe` show up as colors, and float tuples can be limited to chosen file
 types. Colors the IDE already shows a swatch for, such as AWT colors in Java, don't get a second one. CSS-like file

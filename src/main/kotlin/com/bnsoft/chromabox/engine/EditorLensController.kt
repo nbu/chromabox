@@ -35,6 +35,7 @@ import com.intellij.openapi.fileTypes.LanguageFileType
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.util.registry.Registry
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.Alarm
 import com.intellij.util.concurrency.AppExecutorUtil
@@ -48,7 +49,7 @@ import javax.swing.SwingUtilities
  * [LensPresentation.INLAY_ONLY], folds the literal away; in [LensPresentation.GUTTER], shows a gutter icon per line
  * instead. Clicking an inlay or icon opens the lens editor and writes the edited value back.
  */
-class EditorLensController private constructor(private val editor: Editor, private val host: LensHost) : Disposable {
+class EditorLensController private constructor(private val editor: Editor, private val host: LensHost) : Disposable, LensEditorAccess {
     private class Element<V : Any>(
         val lens: Lens<V>,
         val match: LensMatch<V>,
@@ -68,8 +69,14 @@ class EditorLensController private constructor(private val editor: Editor, priva
 
     private val lineIcons = mutableListOf<LineIcon>()
 
-    /** Inlays of [LensHost.annotations], with their keys. */
-    private val annotations = mutableListOf<Pair<Inlay<*>, Any>>()
+    /** Inlays of [LensHost.annotations], with the latest annotation each one shows. */
+    private class ShownAnnotation(val inlay: Inlay<*>, var annotation: LensAnnotation)
+
+    private val annotations = mutableListOf<ShownAnnotation>()
+
+    /** Activates the annotation the mouse rests on. */
+    private val hoverAlarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
+    private var hovered: Inlay<*>? = null
     private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
 
     /** Text inserted since the last applied scan; a literal created there is being typed, so it isn't folded yet. */
@@ -119,6 +126,13 @@ class EditorLensController private constructor(private val editor: Editor, priva
         editor.addEditorMouseListener(object : EditorMouseListener {
             override fun mousePressed(event: EditorMouseEvent) {
                 if (!SwingUtilities.isLeftMouseButton(event.mouseEvent)) return
+                annotationAt(event)?.let { shown ->
+                    val activate = shown.annotation.activate ?: return@let
+                    event.consume()
+                    hoverAlarm.cancelAllRequests()
+                    activate(this@EditorLensController, RelativePoint(event.mouseEvent))
+                    return
+                }
                 val element = elementAt(event)?.takeIf { it.isEditable } ?: return
                 // Keep the caret where it is, so a folded literal doesn't unfold.
                 event.consume()
@@ -127,9 +141,11 @@ class EditorLensController private constructor(private val editor: Editor, priva
         }, this)
         editor.addEditorMouseMotionListener(object : EditorMouseMotionListener {
             override fun mouseMoved(event: EditorMouseEvent) {
-                val editable = elementAt(event)?.isEditable == true
+                val annotation = annotationAt(event)?.takeIf { it.annotation.activate != null }
+                val editable = annotation != null || elementAt(event)?.isEditable == true
                 val cursor = if (editable) Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) else null
                 (editor as? EditorEx)?.setCustomCursor(this@EditorLensController, cursor)
+                hoverOver(annotation, event)
             }
         }, this)
         (editor.foldingModel as? FoldingModelEx)?.addListener(object : FoldingListener {
@@ -272,21 +288,63 @@ class EditorLensController private constructor(private val editor: Editor, priva
         }
     }
 
-    /** Keeps the annotation inlays whose offset and key didn't change, and replaces the rest. */
+    /**
+     * Keeps the annotation inlays whose offset and key didn't change, and replaces the rest. A kept inlay gets the new
+     * annotation, whose [LensAnnotation.activate] knows the current text.
+     */
     private fun applyAnnotations(wanted: List<LensAnnotation>) {
+        val byKey = wanted.associateBy { it.offset to it.key }
         val kept = HashSet<Pair<Int, Any>>()
-        val wantedKeys = wanted.mapTo(HashSet()) { it.offset to it.key }
-        val stale = annotations.filter { (inlay, key) ->
-            !(inlay.isValid && (inlay.offset to key).let { it in wantedKeys && kept.add(it) })
+        val stale = annotations.filter { shown ->
+            val key = shown.inlay.offset to shown.annotation.key
+            val keep = shown.inlay.isValid && key in byKey && kept.add(key)
+            if (keep) shown.annotation = byKey.getValue(key)
+            !keep
         }
-        stale.forEach { it.first.dispose() }
+        stale.forEach { it.inlay.dispose() }
         annotations.removeAll(stale.toSet())
         for (annotation in wanted) {
             if ((annotation.offset to annotation.key) in kept) continue
             // After the text at the offset, and after a swatch that sits there in inlay-only mode.
             val inlay = editor.inlayModel.addInlineElement(annotation.offset, true, ANNOTATION_PRIORITY, annotation.renderer) ?: continue
-            annotations += inlay to annotation.key
+            annotations += ShownAnnotation(inlay, annotation)
         }
+    }
+
+    private fun annotationAt(event: EditorMouseEvent): ShownAnnotation? {
+        val inlay = event.inlay ?: return null
+        return annotations.find { it.inlay == inlay }
+    }
+
+    /** Activates an annotation once the mouse rests on it, like a tooltip. */
+    private fun hoverOver(shown: ShownAnnotation?, event: EditorMouseEvent) {
+        if (shown?.inlay == hovered) return
+        hovered = shown?.inlay
+        hoverAlarm.cancelAllRequests()
+        if (shown == null) return
+        val location = RelativePoint(event.mouseEvent)
+        hoverAlarm.addRequest({
+            if (hovered == shown.inlay && shown.inlay.isValid) shown.annotation.activate?.invoke(this, location)
+        }, Registry.intValue("ide.tooltip.initialDelay", HOVER_DELAY_MS))
+    }
+
+    override val project get() = editor.project
+
+    override val shownMatches: List<ShownMatch>
+        get() = elements.filter { it.marker.isValid }.sortedBy { it.marker.startOffset }.map { ShownMatch(it.marker.textRange, it.match.value) }
+
+    override fun write(range: TextRange, value: Any): Boolean {
+        @Suppress("UNCHECKED_CAST")
+        val element = elements.find { it.marker.isValid && it.marker.textRange == range } as Element<Any>? ?: return false
+        val lensEditor = editorOf(element) ?: return false
+        if (!FileDocumentManager.getInstance().requestWriting(editor.document, editor.project)) return false
+        val session = EditSession(element.lens, lensEditor, element.match, range)
+        try {
+            session.apply(value)
+        } finally {
+            session.dispose()
+        }
+        return true
     }
 
     private fun clearEdited() {
@@ -429,7 +487,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
         if (editor.isDisposed) return
         lineIcons.forEach { it.highlighter.dispose() }
         lineIcons.clear()
-        annotations.forEach { it.first.dispose() }
+        annotations.forEach { it.inlay.dispose() }
         annotations.clear()
         remove(elements.toList())
     }
@@ -508,7 +566,10 @@ class EditorLensController private constructor(private val editor: Editor, priva
     }
 
     // Test hooks.
-    internal val annotationInlays: List<Inlay<*>> get() = annotations.map { it.first }.sortedBy { it.offset }
+    internal val annotationInlays: List<Inlay<*>> get() = annotations.map { it.inlay }.sortedBy { it.offset }
+
+    internal fun activateAnnotation(inlay: Inlay<*>, location: RelativePoint) =
+        annotations.find { it.inlay == inlay }?.annotation?.activate?.invoke(this, location)
     internal val lineIconRenderers: List<LineGutterIcon>
         get() = lineIcons.sortedBy { it.highlighter.startOffset }.map { it.highlighter.gutterIconRenderer as LineGutterIcon }
     internal val matchRanges: List<TextRange> get() = elements.map { it.marker.textRange }.sortedBy { it.startOffset }
@@ -536,6 +597,7 @@ class EditorLensController private constructor(private val editor: Editor, priva
 
         // Inlays at one offset that relate to the text before it are shown in order of decreasing priority.
         private const val ANNOTATION_PRIORITY = -1
+        private const val HOVER_DELAY_MS = 700
         private val CONTROLLER = Key.create<EditorLensController>("chromabox.lens.controller")
 
         /** Marks fold regions created by the engine, so they're never mistaken for language folds. */
@@ -559,6 +621,9 @@ class EditorLensController private constructor(private val editor: Editor, priva
             controller.scheduleRefresh(0)
             return controller
         }
+
+        /** The controller of [editor], if it has one. */
+        fun of(editor: Editor): EditorLensController? = editor.getUserData(CONTROLLER)
 
         fun release(editor: Editor) {
             editor.getUserData(CONTROLLER)?.let(Disposer::dispose)

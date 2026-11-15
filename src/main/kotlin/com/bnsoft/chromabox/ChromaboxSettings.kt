@@ -61,6 +61,9 @@ class ChromaboxSettings : PersistentStateComponent<ChromaboxSettings.SettingsSta
 
         var contrastBadges: ContrastBadges = ContrastBadges.ALWAYS
 
+        /** APCA lightness contrast in the contrast popup (C-02.6). */
+        var showApca: Boolean = false
+
         /** Lens id to on/off, only where it differs from [ColorFormat.enabledByDefault], so defaults can still change. */
         var lensOverrides: MutableMap<String, Boolean> = sortedMapOf()
     }

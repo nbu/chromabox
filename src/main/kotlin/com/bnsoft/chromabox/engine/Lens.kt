@@ -42,9 +42,32 @@ interface LensEditor<V : Any> {
 
 /**
  * Something a host shows after the text at [offset], such as a contrast badge after a pair of colors. [key] is
- * compared across scans: an annotation with the same offset and key keeps its inlay.
+ * compared across scans: an annotation with the same offset and key keeps its inlay. [activate] runs when the
+ * annotation is clicked, or the mouse rests on it.
  */
-data class LensAnnotation(val offset: Int, val key: Any, val renderer: EditorCustomElementRenderer)
+data class LensAnnotation(
+    val offset: Int,
+    val key: Any,
+    val renderer: EditorCustomElementRenderer,
+    val activate: ((LensEditorAccess, RelativePoint) -> Unit)? = null,
+)
+
+/** A match an editor shows, at its [range] in the current text. */
+class ShownMatch(val range: TextRange, val value: Any)
+
+/** What a host can do with the matches of one editor, from an annotation or an action. */
+interface LensEditorAccess {
+    val project: Project?
+
+    /** The matches shown now, in text order. */
+    val shownMatches: List<ShownMatch>
+
+    /**
+     * Writes [value] into the match at [range] the way it was written, as one undoable command. False if there's
+     * no such match any more, or the file can't be written.
+     */
+    fun write(range: TextRange, value: Any): Boolean
+}
 
 /** [project] is null for an editor outside a project. */
 data class LensContext(val fileType: FileType, val language: Language?, val document: Document, val project: Project? = null)

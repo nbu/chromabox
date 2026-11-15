@@ -20,7 +20,8 @@
           <li>Float tuples (off by default): <code>[0.1, 0.2, 0.3]</code></li>
         </ul>
         Contrast badges show the WCAG ratio of colors that belong together, such as <code>fg</code> and
-        <code>bg</code> keys, or two colors on one line: <code>4.6:1 AA</code>.<br>
+        <code>bg</code> keys, or two colors on one line: <code>4.6:1 AA</code>. Hover a badge for details and a
+        <b>Fix</b> that adjusts the foreground's lightness until it passes.<br>
         Display modes: swatch only, swatch with the color text, gutter icons, or off (<em>View | Chromabox</em> or
         <em>Settings | Tools | Chromabox</em>).<br>
         Colors the IDE already shows a swatch for are skipped, and so are CSS-like files by default.
@@ -70,6 +71,8 @@
             <action id="Chromabox.Mode.Off" class="com.bnsoft.chromabox.OffModeAction"/>
             <separator/>
             <action id="Chromabox.CycleMode" class="com.bnsoft.chromabox.CycleDisplayModeAction"/>
+            <separator/>
+            <action id="Chromabox.CheckContrast" class="com.bnsoft.chromabox.CheckContrastAction"/>
             <add-to-group group-id="ViewMenu" anchor="last"/>
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </group>
