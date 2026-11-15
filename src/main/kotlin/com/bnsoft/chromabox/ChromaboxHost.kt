@@ -40,7 +40,7 @@ object ChromaboxHost : LensHost {
         ContrastAnnotations.of(matches, context.document.immutableCharSequence, settings.state.contrastBadges)
 
     override fun withoutShownByIde(matches: List<ScannedMatch<*>>, context: LensContext): List<ScannedMatch<*>> {
-        val shown = IdeColorSwatches.shownIn(context) ?: return matches
+        val shown = IdeColorSwatches.shownIn(context, settings::isExcluded) ?: return matches
         return matches.filterNot { shown(it.range) }
     }
 
