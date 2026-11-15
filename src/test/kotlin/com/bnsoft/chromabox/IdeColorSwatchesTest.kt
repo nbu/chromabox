@@ -39,6 +39,12 @@ class IdeColorSwatchesTest : LightJavaCodeInsightFixtureTestCase() {
         assertEquals(listOf(TextRange(start, start + "new Color(255, 0, 0)".length)), matchRanges("A.java", text))
     }
 
+    fun `test CSS in a Markdown code fence gets no second swatch`() {
+        val text = "Accent #ff0000\n\n```css\na { color: #00ff00; }\n```\n"
+        val accent = text.indexOf("#ff0000")
+        assertEquals(listOf(TextRange(accent, accent + 7)), matchRanges("a.md", text))
+    }
+
     fun `test colors in files without a color provider keep their swatch`() {
         assertEquals(listOf(TextRange(0, 20)), matchRanges("a.txt", "new Color(255, 0, 0)"))
     }

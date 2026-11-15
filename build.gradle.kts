@@ -16,6 +16,9 @@ dependencies {
         testFramework(TestFrameworkType.Platform)
         // Java's ElementColorProvider, for the test that AWT colors don't get a second swatch (C-01.g).
         testBundledPlugin("com.intellij.java")
+        // CSS in Markdown code fences, which the IDE shows swatches for itself.
+        testBundledPlugin("org.intellij.plugins.markdown")
+        testBundledPlugin("com.intellij.css")
         testFramework(TestFrameworkType.Plugin.Java)
     }
 }
