@@ -3,7 +3,9 @@ package com.bnsoft.chromabox.palette
 import com.bnsoft.chromabox.ChromaboxBundle
 import com.bnsoft.chromabox.ChromaboxSettingsListener
 import com.bnsoft.chromabox.ColorSwatchRenderer
+import com.bnsoft.chromabox.HexColorParser
 import com.bnsoft.chromabox.color.ChromaColor
+import com.intellij.ide.util.scopeChooser.ScopeChooserCombo
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -26,15 +28,24 @@ import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.ide.CopyPasteManager
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.DumbAwareAction
+import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.SimpleToolWindowPanel
+import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.vfs.newvfs.BulkFileListener
+import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
+import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.psi.search.LocalSearchScope
 import com.intellij.ui.CollectionListModel
 import com.intellij.ui.ColorChooserService
 import com.intellij.ui.ColoredListCellRenderer
@@ -50,15 +61,15 @@ import com.intellij.ui.content.ContentFactory
 import com.intellij.util.Alarm
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.JBUI
-import org.jetbrains.concurrency.CancellablePromise
 import java.awt.datatransfer.StringSelection
 import java.awt.event.MouseEvent
 import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
+import org.jetbrains.concurrency.CancellablePromise
 
-/** Which files the palette lists colors of (C-03.1). Project and custom scopes come with the index. */
-enum class PaletteScope { CURRENT_FILE, OPEN_FILES }
+/** Which files the palette lists colors of (C-03.1). The current and open files are scanned; the others use the index. */
+enum class PaletteScope(val indexed: Boolean = false) { CURRENT_FILE, OPEN_FILES, PROJECT(indexed = true), CUSTOM(indexed = true) }
 
 class PaletteToolWindowFactory : ToolWindowFactory, DumbAware {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
@@ -77,7 +88,8 @@ class PaletteToolWindowFactory : ToolWindowFactory, DumbAware {
 
 /**
  * The colors of the files in [scope], with how often and in which formats each is written (C-03.3). Scans in the
- * background after edits, file switches and settings changes, and only while [isToolWindowVisible] (C-03.8).
+ * background after edits, file switches and settings changes, and only while [isToolWindowVisible] (C-03.8). Project
+ * and custom scopes read the index once indexing is done, and show colors as they're found.
  */
 class PalettePanel(private val project: Project, private val isToolWindowVisible: () -> Boolean) :
     SimpleToolWindowPanel(true, true), Disposable, UiDataProvider {
@@ -85,9 +97,16 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
     internal val list = JBList(model)
     private val scopeBox = ComboBox(PaletteScope.entries.toTypedArray())
     private val sortBox = ComboBox(PaletteSort.entries.toTypedArray())
+    private val customScope = ScopeChooserCombo(project, false, false, null)
     private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
     private var stale = true
     private var scanning = false
+
+    // Each refresh's number; partial results of an older one are dropped.
+    private var generation = 0
+
+    /** Replaces the scope chosen in [customScope]; for tests. */
+    internal var customScopeOverride: GlobalSearchScope? = null
 
     internal var scope: PaletteScope
         get() = scopeBox.item
@@ -104,11 +123,18 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
     init {
         scopeBox.renderer = SimpleListCellRenderer.create("") { ChromaboxBundle.message("palette.scope.${it.name}") }
         sortBox.renderer = SimpleListCellRenderer.create("") { ChromaboxBundle.message("palette.sort.${it.name}") }
-        scopeBox.addActionListener { scheduleRefresh(0) }
+        scopeBox.addActionListener {
+            customScope.isVisible = scope == PaletteScope.CUSTOM
+            scheduleRefresh(0)
+        }
+        customScope.isVisible = false
+        customScope.comboBox.addItemListener { if (scope == PaletteScope.CUSTOM) scheduleRefresh(0) }
+        Disposer.register(this, customScope)
         sortBox.addActionListener { show(model.items) }
         val bar = JPanel(HorizontalLayout(JBUI.scale(6))).apply {
             border = JBUI.Borders.empty(4, 8)
             add(scopeBox)
+            add(customScope)
             add(JBLabel(ChromaboxBundle.message("palette.sort")))
             add(sortBox)
         }
@@ -141,21 +167,47 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         EditorFactory.getInstance().eventMulticaster.addDocumentListener(object : DocumentListener {
             override fun documentChanged(event: DocumentEvent) {
                 val file = FileDocumentManager.getInstance().getFile(event.document) ?: return
-                if (file in files()) scheduleRefresh()
+                if (inScope(file)) scheduleRefresh()
             }
         }, this)
+        // Files created, deleted or changed outside the editor.
+        project.messageBus.connect(this).subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
+            override fun after(events: List<VFileEvent>) {
+                if (scope.indexed) scheduleRefresh()
+            }
+        })
+        project.messageBus.connect(this).subscribe(DumbService.DUMB_MODE, object : DumbService.DumbModeListener {
+            override fun enteredDumbMode() = updateEmptyText()
+
+            override fun exitDumbMode() = updateEmptyText()
+        })
         ApplicationManager.getApplication().messageBus.connect(this)
             .subscribe(ChromaboxSettingsListener.TOPIC, ChromaboxSettingsListener { scheduleRefresh(0) })
         scheduleRefresh(0)
     }
 
+    /** The files of a scanned scope. */
     private fun files(): List<VirtualFile> {
         val editors = FileEditorManager.getInstance(project)
         return when (scope) {
             PaletteScope.CURRENT_FILE -> editors.selectedFiles.take(1)
             PaletteScope.OPEN_FILES -> editors.openFiles.toList()
+            PaletteScope.PROJECT, PaletteScope.CUSTOM -> emptyList()
         }
     }
+
+    /** The search scope of an indexed scope; null while no custom scope is chosen. */
+    private fun searchScope(): GlobalSearchScope? = when (scope) {
+        PaletteScope.PROJECT -> GlobalSearchScope.projectScope(project)
+        PaletteScope.CUSTOM -> customScopeOverride ?: when (val chosen = customScope.selectedScope) {
+            is GlobalSearchScope -> chosen
+            is LocalSearchScope -> GlobalSearchScope.filesScope(project, chosen.virtualFiles.toList())
+            else -> null
+        }
+        PaletteScope.CURRENT_FILE, PaletteScope.OPEN_FILES -> null
+    }
+
+    private fun inScope(file: VirtualFile) = if (scope.indexed) searchScope()?.contains(file) == true else file in files()
 
     private fun scheduleRefresh(delayMillis: Int = REFRESH_DELAY_MS) {
         alarm.cancelAllRequests()
@@ -166,29 +218,67 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         if (stale) scheduleRefresh(0)
     }
 
-    /** Scans [files] in a background read action; null while hidden, which leaves the palette to catch up when shown. */
+    /**
+     * Finds the colors in a background read action; null while hidden, which leaves the palette to catch up when shown,
+     * and when there's no scope to look in.
+     */
     internal fun refresh(): CancellablePromise<*>? {
+        // This one covers any that's scheduled.
+        alarm.cancelAllRequests()
         if (!isToolWindowVisible()) {
             stale = true
             return null
         }
         stale = false
+        val current = ++generation
+        val action = if (scope.indexed) {
+            val searchScope = searchScope()
+            if (searchScope == null) {
+                scanning = false
+                show(emptyList())
+                return null
+            }
+            ReadAction.nonBlocking<List<PaletteEntry>> { indexed(searchScope, current) }.inSmartMode(project)
+        } else {
+            val files = files()
+            ReadAction.nonBlocking<List<PaletteEntry>> {
+                val documents = FileDocumentManager.getInstance()
+                Palette.entries(files.filter { it.isValid }.flatMap { file ->
+                    documents.getDocument(file)?.let { Palette.scan(file, it, project) }.orEmpty()
+                })
+            }
+        }
         scanning = true
         updateEmptyText()
-        val files = files()
-        return ReadAction.nonBlocking<List<PaletteEntry>> {
-            val documents = FileDocumentManager.getInstance()
-            Palette.entries(files.filter { it.isValid }.flatMap { file ->
-                documents.getDocument(file)?.let { Palette.scan(file, it, project) }.orEmpty()
-            })
-        }
+        return action
             .expireWith(this)
             .coalesceBy(this)
             .finishOnUiThread(ModalityState.any()) { entries ->
+                if (current != generation) return@finishOnUiThread
                 scanning = false
                 show(entries)
             }
             .submit(AppExecutorUtil.getAppExecutorService())
+    }
+
+    /** The colors in [searchScope], from the index; shows what's found so far every [PARTIAL_INTERVAL_MS] (C-03.8). */
+    private fun indexed(searchScope: GlobalSearchScope, current: Int): List<PaletteEntry> {
+        val byColor = LinkedHashMap<String, MutableList<PaletteOccurrence>>()
+        var shown = System.currentTimeMillis()
+        ColorIndex.process(project, searchScope) { hex, file, colors ->
+            ProgressManager.checkCanceled()
+            val color = HexColorParser.parse(hex)?.let(ChromaColor::fromAwt) ?: return@process true
+            byColor.getOrPut(hex) { ArrayList() } += colors.map { PaletteOccurrence(file, TextRange(it.start, it.end), color, it.format) }
+            if (System.currentTimeMillis() - shown > PARTIAL_INTERVAL_MS) {
+                shown = System.currentTimeMillis()
+                val partial = Palette.entries(byColor.values.flatten())
+                ApplicationManager.getApplication().invokeLater({
+                    if (current == generation && scanning) show(partial)
+                }, ModalityState.any())
+            }
+            true
+        }
+        return Palette.entries(byColor.values.flatten())
     }
 
     /** Shows [entries] in the chosen order, keeping the selected color selected. */
@@ -202,7 +292,9 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
 
     private fun updateEmptyText() {
         list.emptyText.text = when {
+            scanning && scope.indexed && DumbService.isDumb(project) -> ChromaboxBundle.message("palette.empty.indexing")
             scanning -> ChromaboxBundle.message("palette.empty.scanning")
+            scope == PaletteScope.CUSTOM && searchScope() == null -> ChromaboxBundle.message("palette.empty.noScope")
             scope == PaletteScope.CURRENT_FILE && files().isEmpty() -> ChromaboxBundle.message("palette.empty.noFile")
             else -> ChromaboxBundle.message("palette.empty.${scope.name}")
         }
@@ -236,7 +328,8 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         val title = ChromaboxBundle.message("palette.replace.title", entry.hex)
         val picked = ColorChooserService.getInstance().showDialog(project, list, title, entry.color.toAwt(), true, emptyList(), true)
             ?: return
-        val result = PaletteActions.replace(project, entry.occurrences, ChromaColor.fromAwt(picked))
+        val files = entry.occurrences.map { it.file }.distinct()
+        val result = PaletteActions.replace(project, files, entry.hex, ChromaColor.fromAwt(picked))
         PaletteActions.report(project, result)
     }
 
@@ -286,5 +379,6 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         val ENTRY = DataKey.create<PaletteEntry>("Chromabox.PaletteEntry")
 
         private const val REFRESH_DELAY_MS = 300
+        private const val PARTIAL_INTERVAL_MS = 200
     }
 }

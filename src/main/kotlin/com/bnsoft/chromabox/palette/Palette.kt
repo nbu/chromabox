@@ -18,16 +18,17 @@ import com.intellij.openapi.vfs.VirtualFile
 import java.util.Locale
 
 /**
- * One place a color is written: [text] at [range] in [file]. [write] gives the text for another color in the same
- * notation, or null if that notation can't express it; it's null itself for a literal that can't be edited.
+ * One place a color is written: at [range] in [file], as [text]. From a scan, [write] gives the text for another color
+ * in the same notation, or null if that notation can't express it. From the index, [text] and [write] are null; the
+ * file is scanned again before it's written.
  */
 class PaletteOccurrence(
     val file: VirtualFile,
     val range: TextRange,
-    val text: String,
     val color: ChromaColor,
     val format: ColorFormat?,
-    val write: ((ChromaColor) -> String?)?,
+    val text: String? = null,
+    val write: ((ChromaColor) -> String?)? = null,
 )
 
 /** A color and every place it's written (C-03.3); colors that are equal in 8-bit sRGBA are one entry. */
@@ -53,11 +54,11 @@ object Palette {
                 is ChromaColor -> {
                     @Suppress("UNCHECKED_CAST")
                     val write = writer(scanned.lens as Lens<ChromaColor>, scanned.match as LensMatch<ChromaColor>)
-                    listOf(PaletteOccurrence(file, scanned.range, text.substring(scanned.range), value, format, write))
+                    listOf(PaletteOccurrence(file, scanned.range, value, format, text.substring(scanned.range), write))
                 }
                 is Gradient -> value.stops.map { stop ->
                     val range = stop.range.shiftRight(scanned.range.startOffset)
-                    PaletteOccurrence(file, range, stop.text, stop.color, format, stop.write)
+                    PaletteOccurrence(file, range, stop.color, format, stop.text, stop.write)
                 }
                 else -> emptyList()
             }

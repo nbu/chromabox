@@ -25,7 +25,7 @@
         Contrast badges show the WCAG ratio of colors that belong together, such as <code>fg</code> and
         <code>bg</code> keys, or two colors on one line: <code>4.6:1 AA</code>. Hover a badge for details and a
         <b>Fix</b> that adjusts the foreground's lightness until it passes.<br>
-        The <b>Chromabox</b> tool window lists the colors of the current or open files with usage counts: find usages,
+        The <b>Chromabox</b> tool window lists the colors of a file, the open files or the whole project with usage counts: find usages,
         copy as another notation, or replace a color everywhere, each occurrence in its own notation.<br>
         The Markdown preview shows swatches too.<br>
         <em>Simulate Color Vision</em> draws swatches and contrast badges as people with protanopia, deuteranopia,
@@ -63,6 +63,8 @@
         <editorFactoryListener implementation="com.bnsoft.chromabox.ChromaboxEditorFactoryListener"/>
         <toolWindow id="Chromabox" anchor="right" secondary="true" icon="/icons/chromaboxToolWindow.svg"
                     factoryClass="com.bnsoft.chromabox.palette.PaletteToolWindowFactory"/>
+        <fileBasedIndex implementation="com.bnsoft.chromabox.palette.ColorIndex"/>
+        <postStartupActivity implementation="com.bnsoft.chromabox.palette.ColorIndexStartup"/>
         <notificationGroup id="Chromabox" displayType="BALLOON" bundle="messages.ChromaboxBundle" key="notification.group"/>
         <statusBarWidgetFactory id="Chromabox.ColorVision" implementation="com.bnsoft.chromabox.ColorVisionWidgetFactory"/>
         <applicationConfigurable parentId="tools"
@@ -75,6 +77,8 @@
     <applicationListeners>
         <listener class="com.bnsoft.chromabox.ChromaboxDynamicPluginListener"
                   topic="com.intellij.ide.plugins.DynamicPluginListener"/>
+        <listener class="com.bnsoft.chromabox.palette.ColorIndexSettingsListener"
+                  topic="com.bnsoft.chromabox.ChromaboxSettingsListener"/>
     </applicationListeners>
 
     <actions>

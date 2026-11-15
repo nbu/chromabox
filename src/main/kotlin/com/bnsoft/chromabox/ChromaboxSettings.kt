@@ -72,6 +72,9 @@ class ChromaboxSettings : PersistentStateComponent<ChromaboxSettings.SettingsSta
         /** APCA lightness contrast in the contrast popup (C-02.6). */
         var showApca: Boolean = false
 
+        /** The format and file-type settings the color index was built with (C-03.2); see `ColorIndex`. */
+        var colorIndexFingerprint: String = ""
+
         /** Swatches in the Markdown preview (C-07.7). */
         var showInMarkdownPreview: Boolean = true
 
