@@ -1,0 +1,103 @@
+package com.bnsoft.chromabox.palette
+
+import com.bnsoft.chromabox.ChromaboxHost
+import com.bnsoft.chromabox.ChromaboxSettings
+import com.bnsoft.chromabox.ColorFormat
+import com.bnsoft.chromabox.Gradient
+import com.bnsoft.chromabox.color.ChromaColor
+import com.bnsoft.chromabox.color.ColorSpaces
+import com.bnsoft.chromabox.engine.Lens
+import com.bnsoft.chromabox.engine.LensContext
+import com.bnsoft.chromabox.engine.LensMatch
+import com.bnsoft.chromabox.engine.LensScanner
+import com.intellij.openapi.editor.Document
+import com.intellij.openapi.fileTypes.LanguageFileType
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.vfs.VirtualFile
+import java.util.Locale
+
+/**
+ * One place a color is written: [text] at [range] in [file]. [write] gives the text for another color in the same
+ * notation, or null if that notation can't express it; it's null itself for a literal that can't be edited.
+ */
+class PaletteOccurrence(
+    val file: VirtualFile,
+    val range: TextRange,
+    val text: String,
+    val color: ChromaColor,
+    val format: ColorFormat?,
+    val write: ((ChromaColor) -> String?)?,
+)
+
+/** A color and every place it's written (C-03.3); colors that are equal in 8-bit sRGBA are one entry. */
+class PaletteEntry(val color: ChromaColor, val occurrences: List<PaletteOccurrence>) {
+    val hex: String get() = Palette.hex(color)
+
+    val formats: List<ColorFormat> get() = occurrences.mapNotNull { it.format }.distinct().sorted()
+}
+
+enum class PaletteSort { USAGE, HUE, LIGHTNESS }
+
+object Palette {
+    /** The colors in [document], with gradient stops as colors of their own. Needs a read action. */
+    fun scan(file: VirtualFile, document: Document, project: Project?): List<PaletteOccurrence> {
+        val settings = ChromaboxSettings.getInstance()
+        val fileType = file.fileType
+        if (document.textLength > ChromaboxSettings.MAX_DOCUMENT_LENGTH || settings.isExcluded(fileType)) return emptyList()
+        val context = LensContext(fileType, (fileType as? LanguageFileType)?.language, document, project)
+        val text = document.immutableCharSequence
+        return LensScanner.scan(text, context, ChromaboxHost.lenses).flatMap { scanned ->
+            val format = ColorFormat.byLensId(scanned.lens.id)
+            when (val value = scanned.match.value) {
+                is ChromaColor -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val write = writer(scanned.lens as Lens<ChromaColor>, scanned.match as LensMatch<ChromaColor>)
+                    listOf(PaletteOccurrence(file, scanned.range, text.substring(scanned.range), value, format, write))
+                }
+                is Gradient -> value.stops.map { stop ->
+                    val range = stop.range.shiftRight(scanned.range.startOffset)
+                    PaletteOccurrence(file, range, stop.text, stop.color, format, stop.write)
+                }
+                else -> emptyList()
+            }
+        }
+    }
+
+    private fun writer(lens: Lens<ChromaColor>, match: LensMatch<ChromaColor>): ((ChromaColor) -> String?)? {
+        val editor = lens.editor(match) ?: return null
+        return { color -> editor.format(color, match) }
+    }
+
+    private fun CharSequence.substring(range: TextRange) = subSequence(range.startOffset, range.endOffset).toString()
+
+    /** Groups [occurrences] by color, most used first. */
+    fun entries(occurrences: List<PaletteOccurrence>): List<PaletteEntry> =
+        occurrences.groupBy { hex(it.color) }.values
+            .map { PaletteEntry(ChromaColor.fromAwt(it.first().color.toAwt()), it) }
+            .let { sorted(it, PaletteSort.USAGE) }
+
+    fun sorted(entries: List<PaletteEntry>, sort: PaletteSort): List<PaletteEntry> = when (sort) {
+        PaletteSort.USAGE -> entries.sortedWith(compareByDescending<PaletteEntry> { it.occurrences.size }.thenBy { it.hex })
+        // Grays last, dark to light; colors by hue, starting at red.
+        PaletteSort.HUE -> entries.sortedWith(compareBy<PaletteEntry>({ hue(it.color) }, { lightness(it.color) }, { it.hex }))
+        PaletteSort.LIGHTNESS -> entries.sortedWith(compareBy<PaletteEntry>({ lightness(it.color) }, { it.hex }))
+    }
+
+    private fun hue(color: ChromaColor): Double {
+        val oklch = ColorSpaces.toOklch(color)
+        return if (oklch.h.isNaN() || oklch.c < GRAY_CHROMA) Double.MAX_VALUE else oklch.h
+    }
+
+    private fun lightness(color: ChromaColor) = ColorSpaces.toOklch(color).l
+
+    // OKLCH chroma under which a color counts as a gray when sorting by hue.
+    private const val GRAY_CHROMA = 0.02
+
+    /** `#rrggbb`, or `#rrggbbaa` if translucent, of the color clamped to 8-bit sRGB. */
+    fun hex(color: ChromaColor): String {
+        val awt = color.toAwt()
+        val rgb = String.format(Locale.ROOT, "#%02x%02x%02x", awt.red, awt.green, awt.blue)
+        return if (awt.alpha == 255) rgb else rgb + String.format(Locale.ROOT, "%02x", awt.alpha)
+    }
+}
