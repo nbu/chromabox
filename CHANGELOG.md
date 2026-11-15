@@ -31,8 +31,8 @@
 - Contrast popup on a badge, or for any two colors with _Chromabox | Check Contrast_: results for normal text, large
   text and UI components, sample text, optional APCA, and a fix that adjusts the foreground's lightness to reach AA or
   AAA.
-- Chromabox tool window: the colors of the current file or open files, with usage counts and formats, sorted by
-  usage, hue or lightness. Find usages, copy as hex, `rgb()`, `hsl()`, `oklch()`, Compose or SwiftUI, and replace a
+- Chromabox tool window: the colors of the current file, open files, the project or any scope, with usage counts
+  and formats, sorted by usage, hue or lightness. The project and other scopes use an index. Find usages, copy as hex, `rgb()`, `hsl()`, `oklch()`, Compose or SwiftUI, and replace a
   color everywhere, each occurrence in its own notation, as one undo step.
 - Swatches in the Markdown preview, before each color the editor shows a swatch for. Read-only; they can be turned
   off in settings.

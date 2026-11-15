@@ -9,6 +9,7 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.ReadonlyStatusHandler
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
 import com.intellij.usageView.UsageInfo
 import com.intellij.usages.Usage
@@ -20,38 +21,27 @@ import com.intellij.usages.UsageViewPresentation
 /** What a palette color can do (C-03.5). */
 object PaletteActions {
     /** How a replace went: occurrences written, ones whose notation can't express the color, and read-only files. */
-    data class ReplaceResult(val written: Int, val unrepresentable: Int, val readOnlyFiles: Int, val changed: Int)
+    data class ReplaceResult(val written: Int, val unrepresentable: Int, val readOnlyFiles: Int)
 
     /**
-     * Writes [color] over every occurrence, each in its own notation, as one undoable command, undoable from any of the
-     * files it changed. Skips read-only files, occurrences whose text changed since the scan, and notations that can't
-     * express [color], such as a named color for a color without a name.
+     * Writes [color] over every occurrence of the color [hex] in [files], each in its own notation, as one undoable
+     * command, undoable from any of the files it changed. The files are scanned again first, so what's written is
+     * what's there now. Skips read-only files and notations that can't express [color].
      */
-    fun replace(project: Project, occurrences: List<PaletteOccurrence>, color: ChromaColor): ReplaceResult {
-        val byFile = occurrences.groupBy { it.file }
-        val status = ReadonlyStatusHandler.getInstance(project).ensureFilesWritable(byFile.keys)
+    fun replace(project: Project, files: Collection<VirtualFile>, hex: String, color: ChromaColor): ReplaceResult {
+        val status = ReadonlyStatusHandler.getInstance(project).ensureFilesWritable(files)
         val readOnly = status.readonlyFiles.toSet()
-        var written = 0
         var unrepresentable = 0
-        var changed = 0
-        val edits = byFile.filterKeys { it !in readOnly }.mapNotNull { (file, inFile) ->
+        val edits = files.filter { it !in readOnly && it.isValid }.mapNotNull { file ->
             val document = FileDocumentManager.getInstance().getDocument(file) ?: return@mapNotNull null
-            document to inFile.sortedByDescending { it.range.startOffset }.mapNotNull { occurrence ->
-                val write = occurrence.write
-                val text = write?.invoke(color)
-                when {
-                    occurrence.range.endOffset > document.textLength || document.getText(occurrence.range) != occurrence.text -> {
-                        changed++
-                        null
-                    }
-                    text == null -> {
-                        unrepresentable++
-                        null
-                    }
-                    else -> occurrence to text
-                }
+            val occurrences = Palette.scan(file, document, project).filter { Palette.hex(it.color) == hex }
+            document to occurrences.sortedByDescending { it.range.startOffset }.mapNotNull { occurrence ->
+                val text = occurrence.write?.invoke(color)
+                if (text == null) unrepresentable++
+                text?.let { occurrence to it }
             }
         }.filter { it.second.isNotEmpty() }
+        var written = 0
         if (edits.isNotEmpty()) {
             WriteCommandAction.writeCommandAction(project)
                 .withName(ChromaboxBundle.message("palette.replace.command"))
@@ -65,7 +55,7 @@ object PaletteActions {
                     }
                 }
         }
-        return ReplaceResult(written, unrepresentable, byFile.keys.count { it in readOnly }, changed)
+        return ReplaceResult(written, unrepresentable, files.count { it in readOnly })
     }
 
     /** Tells what [replace] skipped; says nothing if it skipped nothing. */
@@ -73,7 +63,6 @@ object PaletteActions {
         val skipped = buildList {
             if (result.unrepresentable > 0) add(ChromaboxBundle.message("palette.replace.unrepresentable", result.unrepresentable))
             if (result.readOnlyFiles > 0) add(ChromaboxBundle.message("palette.replace.readOnly", result.readOnlyFiles))
-            if (result.changed > 0) add(ChromaboxBundle.message("palette.replace.changed", result.changed))
         }
         if (skipped.isEmpty()) return
         NotificationGroupManager.getInstance().getNotificationGroup(NOTIFICATIONS)
