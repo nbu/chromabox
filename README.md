@@ -53,6 +53,13 @@ turned on in settings, the APCA lightness contrast (Lc). **Fix** changes the for
 and chroma, to the nearest color that reaches AA or AAA, and writes it in the same notation; one undo reverts it. To
 check any two colors, put a caret on each (or select both) and use _Chromabox | Check Contrast_.
 
+To see colors as people with a color vision deficiency do, use _Chromabox | Simulate Color Vision_: protanopia,
+deuteranopia, tritanopia (Machado et al. 2009, at full severity) or achromatopsia. Swatches, gradients and gutter
+icons are drawn as they'd look, and contrast badges show the ratio of the simulated colors, marked with the
+simulation (`3.2:1 AA Large · protan`); the text doesn't change. The status bar shows the simulation while it's on;
+click it to switch. A fix in the contrast popup then reaches the level both with and without the simulation. The
+simulation ends when the IDE closes, unless _Keep the simulation after restarting the IDE_ is on in settings.
+
 Each format can be turned on or off in _Settings | Tools | Chromabox | Formats_. Short hex forms (`#RGB`, `#RGBA`) can
 be turned off if hashtags like `#bad` or `#cafe` show up as colors, and float tuples can be limited to chosen file
 types. Colors the IDE already shows a swatch for, such as AWT colors in Java, don't get a second one. CSS-like file

@@ -77,6 +77,13 @@ class ChromaboxConfigurable : BoundConfigurable(ChromaboxBundle.message("setting
                     .comment(ChromaboxBundle.message("settings.showApca.comment"))
             }
         }
+        group(ChromaboxBundle.message("settings.simulation")) {
+            row {
+                checkBox(ChromaboxBundle.message("settings.rememberSimulation"))
+                    .bindSelected(settings::rememberSimulation)
+                    .comment(ChromaboxBundle.message("settings.rememberSimulation.comment"))
+            }
+        }
         row(ChromaboxBundle.message("settings.excludedFileTypes")) {
             textField()
                 .align(AlignX.FILL)

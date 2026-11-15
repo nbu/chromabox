@@ -25,6 +25,8 @@
         Contrast badges show the WCAG ratio of colors that belong together, such as <code>fg</code> and
         <code>bg</code> keys, or two colors on one line: <code>4.6:1 AA</code>. Hover a badge for details and a
         <b>Fix</b> that adjusts the foreground's lightness until it passes.<br>
+        <em>Simulate Color Vision</em> draws swatches and contrast badges as people with protanopia, deuteranopia,
+        tritanopia or achromatopsia see them.<br>
         Display modes: swatch only, swatch with the color text, gutter icons, or off (<em>View | Chromabox</em> or
         <em>Settings | Tools | Chromabox</em>).<br>
         Colors the IDE already shows a swatch for are skipped, and so are CSS-like files by default.
@@ -55,6 +57,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
         <editorFactoryListener implementation="com.bnsoft.chromabox.ChromaboxEditorFactoryListener"/>
+        <statusBarWidgetFactory id="Chromabox.ColorVision" implementation="com.bnsoft.chromabox.ColorVisionWidgetFactory"/>
         <applicationConfigurable parentId="tools"
                                  id="com.bnsoft.chromabox.settings"
                                  instance="com.bnsoft.chromabox.ChromaboxConfigurable"
@@ -77,6 +80,14 @@
             <action id="Chromabox.CycleMode" class="com.bnsoft.chromabox.CycleDisplayModeAction"/>
             <separator/>
             <action id="Chromabox.CheckContrast" class="com.bnsoft.chromabox.CheckContrastAction"/>
+            <group id="Chromabox.Simulate" popup="true">
+                <action id="Chromabox.Simulate.None" class="com.bnsoft.chromabox.SimulateNoneAction"/>
+                <separator/>
+                <action id="Chromabox.Simulate.Protanopia" class="com.bnsoft.chromabox.SimulateProtanopiaAction"/>
+                <action id="Chromabox.Simulate.Deuteranopia" class="com.bnsoft.chromabox.SimulateDeuteranopiaAction"/>
+                <action id="Chromabox.Simulate.Tritanopia" class="com.bnsoft.chromabox.SimulateTritanopiaAction"/>
+                <action id="Chromabox.Simulate.Achromatopsia" class="com.bnsoft.chromabox.SimulateAchromatopsiaAction"/>
+            </group>
             <add-to-group group-id="ViewMenu" anchor="last"/>
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </group>

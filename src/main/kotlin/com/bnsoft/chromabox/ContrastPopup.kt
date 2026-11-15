@@ -2,6 +2,7 @@ package com.bnsoft.chromabox
 
 import com.bnsoft.chromabox.color.Apca
 import com.bnsoft.chromabox.color.ChromaColor
+import com.bnsoft.chromabox.color.ColorVision
 import com.bnsoft.chromabox.color.Contrast
 import com.bnsoft.chromabox.color.ContrastFix
 import com.bnsoft.chromabox.color.ContrastResult
@@ -27,7 +28,8 @@ import javax.swing.JComponent
 /**
  * The contrast of a pair in detail (C-02.3): the ratio, results for normal text, large text and UI components, a
  * preview, APCA if turned on (C-02.6), and fixes that change the foreground's lightness until it reaches AA or AAA
- * (C-02.4).
+ * (C-02.4). With a color vision simulation on, the results and preview are for the colors as they look with it, and
+ * fixes reach the level both with and without it (C-05.4).
  */
 object ContrastPopup {
     private var current: Pair<JBPopup, ContrastPair>? = null
@@ -65,13 +67,18 @@ object ContrastPopup {
     internal fun content(pair: ContrastPair, onFix: (ChromaColor) -> Unit): JComponent {
         val fg = pair.foreground.color
         val bg = pair.background.color
-        val result = Contrast.of(fg, bg)
+        val vision = ChromaboxSettings.getInstance().simulation
+        val result = Contrast.of(fg, bg, vision)
         fun outcome(threshold: Double) = ChromaboxBundle.message(
             if (result.ratio >= threshold) "contrast.popup.pass" else "contrast.popup.fail",
             ratio(threshold),
         )
         return panel {
             row { label(ChromaboxBundle.message("contrast.popup.ratio", result.ratioText)).bold() }
+            if (vision != ColorVision.NONE) {
+                val name = ChromaboxBundle.message("simulation.${vision.name}")
+                row { comment(ChromaboxBundle.message("contrast.popup.simulated", name, Contrast.of(fg, bg).ratioText)) }
+            }
             if (result.approximate) row { comment(ChromaboxBundle.message("contrast.popup.approximate")) }
             row(ChromaboxBundle.message("contrast.popup.normalText")) {
                 label("AA " + outcome(ContrastResult.AA))
@@ -85,13 +92,14 @@ object ContrastPopup {
                 label("AA " + outcome(ContrastResult.AA_LARGE))
             }
             if (ChromaboxSettings.getInstance().state.showApca) {
-                val lc = Apca.lc(Contrast.composite(fg, opaque(bg)), opaque(bg))
+                val back = opaque(bg)
+                val lc = Apca.lc(vision.simulate(Contrast.composite(fg, back)), vision.simulate(back))
                 row(ChromaboxBundle.message("contrast.popup.apca")) { label(String.format(Locale.ROOT, "Lc %.1f", lc)) }
             }
-            row { cell(Preview(fg, bg)) }
+            row { cell(Preview(fg, bg, vision)) }
             for ((level, target) in listOf("AA" to ContrastResult.AA, "AAA" to ContrastResult.AAA)) {
-                val fixed = ContrastFix.suggest(fg, bg, target) ?: continue
-                val ratio = Contrast.of(fixed, bg).ratioText
+                val fixed = ContrastFix.suggest(fg, bg, target, vision) ?: continue
+                val ratio = Contrast.of(fixed, bg, vision).ratioText
                 row {
                     icon(ColorSwatchRenderer.of(fixed))
                     link(ChromaboxBundle.message("contrast.popup.fix", level, ratio)) { onFix(fixed) }
@@ -114,8 +122,8 @@ object ContrastPopup {
 
     private fun opaque(color: ChromaColor) = Contrast.composite(color, ChromaColor(1.0, 1.0, 1.0))
 
-    /** Sample text in the foreground on the background, normal and large. */
-    private class Preview(private val fg: ChromaColor, private val bg: ChromaColor) : JComponent() {
+    /** Sample text in the foreground on the background, normal and large, as they look with [vision]. */
+    private class Preview(private val fg: ChromaColor, private val bg: ChromaColor, private val vision: ColorVision) : JComponent() {
         private val normal get() = UIUtil.getLabelFont()
         private val large get() = normal.deriveFont(Font.BOLD, normal.size2D * 1.5f)
 
@@ -129,11 +137,12 @@ object ContrastPopup {
             try {
                 GraphicsUtil.setupAntialiasing(g2)
                 // A translucent background over white, as the ratio assumes; a translucent foreground over it.
-                g2.color = opaque(bg).toAwt()
+                val back = opaque(bg)
+                g2.color = vision.simulate(back).toAwt()
                 g2.fillRect(0, 0, width, height)
                 g2.color = BORDER
                 g2.draw(Rectangle(0, 0, width - 1, height - 1))
-                g2.color = fg.toAwt()
+                g2.color = vision.simulate(Contrast.composite(fg, back)).toAwt()
                 var y = JBUI.scale(6)
                 for (font in listOf(normal, large)) {
                     g2.font = font

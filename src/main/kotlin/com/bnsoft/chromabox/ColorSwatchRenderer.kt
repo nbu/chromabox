@@ -19,7 +19,8 @@ import javax.swing.Icon
 
 /**
  * A small rounded swatch of [color], as an inlay or, in the gutter, as an icon. [outOfGamut] adds a corner mark:
- * [color] is the clamped sRGB version of a color the literal defines outside sRGB.
+ * [color] is the clamped sRGB version of a color the literal defines outside sRGB. It's drawn as it looks with the
+ * current color vision simulation (C-05).
  */
 class ColorSwatchRenderer(val color: Color, val outOfGamut: Boolean = false) : EditorCustomElementRenderer, Icon {
     override fun calcWidthInPixels(inlay: Inlay<*>): Int = swatchSize(inlay) + JBUI.scale(GAP)
@@ -36,6 +37,7 @@ class ColorSwatchRenderer(val color: Color, val outOfGamut: Boolean = false) : E
     override fun paintIcon(c: Component?, g: Graphics, x: Int, y: Int) = paintSwatch(g, x.toDouble(), y.toDouble(), iconWidth)
 
     private fun paintSwatch(g: Graphics, x: Double, y: Double, size: Int) {
+        val color = ColorVisionSimulation.simulated(color)
         val arc = JBUI.scale(3).toDouble()
         val shape = RoundRectangle2D.Double(x, y, size.toDouble(), size.toDouble(), arc, arc)
 
@@ -47,7 +49,7 @@ class ColorSwatchRenderer(val color: Color, val outOfGamut: Boolean = false) : E
             if (color.alpha < 255) paintCheckerboard(g2, x, y, size)
             g2.color = color
             g2.fill(shape)
-            if (outOfGamut) paintGamutMark(g2, x, y, size)
+            if (outOfGamut) paintGamutMark(g2, x, y, size, color)
             g2.clip = clip
             g2.color = BORDER
             g2.draw(shape)
@@ -57,7 +59,7 @@ class ColorSwatchRenderer(val color: Color, val outOfGamut: Boolean = false) : E
     }
 
     // A triangle in the top-right corner, in black or white, whichever stands out against the swatch.
-    private fun paintGamutMark(g2: Graphics2D, x: Double, y: Double, size: Int) {
+    private fun paintGamutMark(g2: Graphics2D, x: Double, y: Double, size: Int, color: Color) {
         val mark = size * 0.45
         val triangle = Path2D.Double().apply {
             moveTo(x + size - mark, y)

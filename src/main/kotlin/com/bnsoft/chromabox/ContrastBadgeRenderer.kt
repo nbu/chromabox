@@ -1,5 +1,6 @@
 package com.bnsoft.chromabox
 
+import com.bnsoft.chromabox.color.ColorVision
 import com.bnsoft.chromabox.color.ContrastLevel
 import com.bnsoft.chromabox.color.ContrastResult
 import com.intellij.openapi.editor.Editor
@@ -17,9 +18,13 @@ import java.awt.Graphics2D
 import java.awt.Rectangle
 import java.awt.geom.RoundRectangle2D
 
-/** A compact `4.6:1 AA` badge after a pair of colors (C-02.2); its color shows the outcome. */
-class ContrastBadgeRenderer(val result: ContrastResult) : EditorCustomElementRenderer {
-    val text: String = result.ratioText + " " + ChromaboxBundle.message("contrast.level.${result.level.name}")
+/**
+ * A compact `4.6:1 AA` badge after a pair of colors (C-02.2); its color shows the outcome. With a [vision] simulation,
+ * the result is for the simulated colors, and the badge says which: `3.1:1 AA Large · deutan` (C-05.4).
+ */
+class ContrastBadgeRenderer(val result: ContrastResult, vision: ColorVision = ColorVision.NONE) : EditorCustomElementRenderer {
+    val text: String = result.ratioText + " " + ChromaboxBundle.message("contrast.level.${result.level.name}") +
+        if (vision == ColorVision.NONE) "" else " \u00b7 " + ChromaboxBundle.message("simulation.short.${vision.name}")
 
     override fun calcWidthInPixels(inlay: Inlay<*>): Int =
         inlay.editor.contentComponent.getFontMetrics(font(inlay.editor)).stringWidth(text) + JBUI.scale(PADDING) * 2 + JBUI.scale(MARGIN) * 2

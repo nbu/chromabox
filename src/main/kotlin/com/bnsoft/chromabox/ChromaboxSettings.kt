@@ -1,5 +1,6 @@
 package com.bnsoft.chromabox
 
+import com.bnsoft.chromabox.color.ColorVision
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
@@ -14,8 +15,10 @@ enum class DisplayMode { BOX_ONLY, BOX_WITH_HEX, GUTTER, OFF }
 /** When contrast badges are shown (C-02.7); [ONLY_FAILING] shows those under AA for normal text. */
 enum class ContrastBadges { ALWAYS, ONLY_FAILING, OFF }
 
-/** A color notation that can be turned on or off; [lensId] is the id of the lens that detects it. */
-/** [lensBacked] is false for a format shown by annotations rather than a lens of its own; [lensId] still names its setting. */
+/**
+ * A color notation that can be turned on or off; [lensId] is the id of the lens that detects it. [lensBacked] is false
+ * for a format shown by annotations rather than a lens of its own; [lensId] still names its setting.
+ */
 enum class ColorFormat(val lensId: String, val enabledByDefault: Boolean = true, val lensBacked: Boolean = true) {
     HEX("color.hex"),
     CSS_FUNCTIONS("color.css-func"),
@@ -69,6 +72,12 @@ class ChromaboxSettings : PersistentStateComponent<ChromaboxSettings.SettingsSta
         /** APCA lightness contrast in the contrast popup (C-02.6). */
         var showApca: Boolean = false
 
+        /** Whether [simulation] is kept across restarts (C-05.5); otherwise every session starts without one. */
+        var rememberSimulation: Boolean = false
+
+        /** The simulation to restore; only kept up to date while [rememberSimulation] is on. */
+        var simulation: ColorVision = ColorVision.NONE
+
         /** Lens id to on/off, only where it differs from [ColorFormat.enabledByDefault], so defaults can still change. */
         var lensOverrides: MutableMap<String, Boolean> = sortedMapOf()
     }
@@ -79,7 +88,25 @@ class ChromaboxSettings : PersistentStateComponent<ChromaboxSettings.SettingsSta
 
     override fun loadState(state: SettingsState) {
         myState = state
+        simulation = if (state.rememberSimulation) state.simulation else ColorVision.NONE
     }
+
+    /** The color vision deficiency that swatches and badges are drawn for (C-05); a session state unless remembered. */
+    var simulation: ColorVision = ColorVision.NONE
+        private set
+
+    /** Doesn't notify listeners: [ColorVisionSimulation.select] does, and repaints. */
+    fun setSimulation(value: ColorVision) {
+        simulation = value
+        myState.simulation = if (myState.rememberSimulation) value else ColorVision.NONE
+    }
+
+    var rememberSimulation: Boolean
+        get() = myState.rememberSimulation
+        set(value) {
+            myState.rememberSimulation = value
+            myState.simulation = if (value) simulation else ColorVision.NONE
+        }
 
     var mode: DisplayMode
         get() = myState.mode
