@@ -19,6 +19,7 @@ class ScanBenchmarkTest : BasePlatformTestCase() {
         "val background = Color(0xFF112233) and 0xFFAABBCC, Color.fromARGB(255, 1, 2, 3) in code.",
         "Color awt = new Color(1, 2, 3); UIColor(red: 0.1, green: 0.2, blue: 0.3, alpha: 1) elsewhere.",
         "Tuples [0.1, 0.2, 0.3] and (1.0, 0.5, 0.0, 1.0), but not foo(0.1, 0.2, 0.3) or (1, 2, 3).",
+        "background: linear-gradient(to right, #fff 10%, rgb(0 0 0 / 50%), transparent), radial-gradient(red, blue);",
         "A plain line of prose with numbers 1, 2, 3 and words, but no colors at all, to fill the file.",
     )
 
@@ -31,7 +32,7 @@ class ScanBenchmarkTest : BasePlatformTestCase() {
         val document = myFixture.editor.document
         val context = LensContext(PlainTextFileType.INSTANCE, null, document, project)
         val lenses = ChromaboxHost.registeredLenses
-        assertEquals(ColorFormat.entries.size, lenses.size)
+        assertEquals(ColorFormat.entries.count { it.lensBacked }, lenses.size)
 
         // A copy each time, like the document's text after an edit, so that nothing cached for one text is reused.
         fun scan() = runReadAction {

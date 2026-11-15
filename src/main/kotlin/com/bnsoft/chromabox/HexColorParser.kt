@@ -55,7 +55,7 @@ object HexColorParser {
     }
 
     // Digit-only values have no case; default them to lower case.
-    private fun formatOf(digits: String) = HexFormat(digits.length, digits.any { it in 'A'..'F' })
+    internal fun formatOf(digits: String) = HexFormat(digits.length, digits.any { it in 'A'..'F' })
 
     private fun Char.isHexDigit() = this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'
 }

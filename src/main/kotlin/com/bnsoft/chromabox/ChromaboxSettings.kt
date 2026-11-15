@@ -15,7 +15,8 @@ enum class DisplayMode { BOX_ONLY, BOX_WITH_HEX, GUTTER, OFF }
 enum class ContrastBadges { ALWAYS, ONLY_FAILING, OFF }
 
 /** A color notation that can be turned on or off; [lensId] is the id of the lens that detects it. */
-enum class ColorFormat(val lensId: String, val enabledByDefault: Boolean = true) {
+/** [lensBacked] is false for a format shown by annotations rather than a lens of its own; [lensId] still names its setting. */
+enum class ColorFormat(val lensId: String, val enabledByDefault: Boolean = true, val lensBacked: Boolean = true) {
     HEX("color.hex"),
     CSS_FUNCTIONS("color.css-func"),
     CSS_COLOR_4("color.css4"),
@@ -27,6 +28,10 @@ enum class ColorFormat(val lensId: String, val enabledByDefault: Boolean = true)
 
     // Ambiguous; only in file types the user picks.
     FLOAT_TUPLES("color.float-tuple", enabledByDefault = false),
+    GRADIENTS("color.gradient"),
+
+    // A strip after three or more colors in a row; extra clutter for most files.
+    COLOR_SEQUENCES("color.sequence", enabledByDefault = false, lensBacked = false),
     ;
 
     companion object {

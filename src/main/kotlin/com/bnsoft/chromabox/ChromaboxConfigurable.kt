@@ -24,7 +24,7 @@ class ChromaboxConfigurable : BoundConfigurable(ChromaboxBundle.message("setting
         group(ChromaboxBundle.message("settings.formats")) {
             // Only formats whose lens is registered, so formats that aren't implemented yet stay hidden.
             val registered = ChromaboxHost.registeredLenses.mapTo(HashSet()) { it.id }
-            for (format in ColorFormat.entries.filter { it.lensId in registered }) {
+            for (format in ColorFormat.entries.filter { !it.lensBacked || it.lensId in registered }) {
                 lateinit var enabled: Cell<JBCheckBox>
                 row {
                     enabled = checkBox(ChromaboxBundle.message("format.${format.name}"))
