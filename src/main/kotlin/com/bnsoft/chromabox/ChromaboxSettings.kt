@@ -72,6 +72,9 @@ class ChromaboxSettings : PersistentStateComponent<ChromaboxSettings.SettingsSta
         /** APCA lightness contrast in the contrast popup (C-02.6). */
         var showApca: Boolean = false
 
+        /** CIEDE2000 under which palette colors are grouped as near-duplicates (C-03.4), 0.5 to 10. */
+        var nearDuplicateThreshold: Double = DEFAULT_NEAR_DUPLICATE_THRESHOLD
+
         /** The format and file-type settings the color index was built with (C-03.2); see `ColorIndex`. */
         var colorIndexFingerprint: String = ""
 
@@ -145,6 +148,8 @@ class ChromaboxSettings : PersistentStateComponent<ChromaboxSettings.SettingsSta
     companion object {
         // File types where the IDE already shows color swatches (via ElementColorProvider).
         const val DEFAULT_EXCLUDED_FILE_TYPES = "CSS, SCSS, SASS, LESS, Stylus, PostCSS"
+
+        const val DEFAULT_NEAR_DUPLICATE_THRESHOLD = 2.0
 
         /** Documents larger than this many characters aren't scanned. */
         const val MAX_DOCUMENT_LENGTH = 2_000_000

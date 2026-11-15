@@ -1,6 +1,7 @@
 package com.bnsoft.chromabox.palette
 
 import com.bnsoft.chromabox.ChromaboxBundle
+import com.bnsoft.chromabox.ChromaboxSettings
 import com.bnsoft.chromabox.ChromaboxSettingsListener
 import com.bnsoft.chromabox.ColorSwatchRenderer
 import com.bnsoft.chromabox.HexColorParser
@@ -54,6 +55,7 @@ import com.intellij.ui.PopupHandler
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.panels.HorizontalLayout
@@ -63,10 +65,14 @@ import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.JBUI
 import java.awt.datatransfer.StringSelection
 import java.awt.event.MouseEvent
+import java.util.Locale
 import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 import org.jetbrains.concurrency.CancellablePromise
+
+/** A line of the palette: [entry], in [group] if near-duplicates are grouped; [distance] from the leader for a member. */
+class PaletteRow(val entry: PaletteEntry, val group: PaletteGroup?, val distance: Double?)
 
 /** Which files the palette lists colors of (C-03.1). The current and open files are scanned; the others use the index. */
 enum class PaletteScope(val indexed: Boolean = false) { CURRENT_FILE, OPEN_FILES, PROJECT(indexed = true), CUSTOM(indexed = true) }
@@ -93,8 +99,12 @@ class PaletteToolWindowFactory : ToolWindowFactory, DumbAware {
  */
 class PalettePanel(private val project: Project, private val isToolWindowVisible: () -> Boolean) :
     SimpleToolWindowPanel(true, true), Disposable, UiDataProvider {
-    private val model = CollectionListModel<PaletteEntry>()
+    private val model = CollectionListModel<PaletteRow>()
     internal val list = JBList(model)
+    private val groupBox = JBCheckBox(ChromaboxBundle.message("palette.groupSimilar"), true)
+
+    // The groups found by the last refresh, in no particular order.
+    private var groups: List<PaletteGroup> = emptyList()
     private val scopeBox = ComboBox(PaletteScope.entries.toTypedArray())
     private val sortBox = ComboBox(PaletteSort.entries.toTypedArray())
     private val customScope = ScopeChooserCombo(project, false, false, null)
@@ -120,6 +130,12 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
             sortBox.item = value
         }
 
+    internal var groupSimilar: Boolean
+        get() = groupBox.isSelected
+        set(value) {
+            groupBox.isSelected = value
+        }
+
     init {
         scopeBox.renderer = SimpleListCellRenderer.create("") { ChromaboxBundle.message("palette.scope.${it.name}") }
         sortBox.renderer = SimpleListCellRenderer.create("") { ChromaboxBundle.message("palette.sort.${it.name}") }
@@ -130,23 +146,25 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         customScope.isVisible = false
         customScope.comboBox.addItemListener { if (scope == PaletteScope.CUSTOM) scheduleRefresh(0) }
         Disposer.register(this, customScope)
-        sortBox.addActionListener { show(model.items) }
+        sortBox.addActionListener { show(groups) }
+        groupBox.addItemListener { show(groups) }
         val bar = JPanel(HorizontalLayout(JBUI.scale(6))).apply {
             border = JBUI.Borders.empty(4, 8)
             add(scopeBox)
             add(customScope)
             add(JBLabel(ChromaboxBundle.message("palette.sort")))
             add(sortBox)
+            add(groupBox)
         }
         toolbar = bar
 
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
-        list.cellRenderer = EntryRenderer()
+        list.cellRenderer = RowRenderer()
         setContent(ScrollPaneFactory.createScrollPane(list, true))
         PopupHandler.installPopupMenu(list, actions(), "ChromaboxPalette")
         object : DoubleClickListener() {
             override fun onDoubleClick(event: MouseEvent): Boolean {
-                list.selectedValue?.let(::open) ?: return false
+                list.selectedValue?.entry?.let(::open) ?: return false
                 return true
             }
         }.installOn(list)
@@ -238,14 +256,14 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
                 show(emptyList())
                 return null
             }
-            ReadAction.nonBlocking<List<PaletteEntry>> { indexed(searchScope, current) }.inSmartMode(project)
+            ReadAction.nonBlocking<List<PaletteGroup>> { grouped(indexed(searchScope, current)) }.inSmartMode(project)
         } else {
             val files = files()
-            ReadAction.nonBlocking<List<PaletteEntry>> {
+            ReadAction.nonBlocking<List<PaletteGroup>> {
                 val documents = FileDocumentManager.getInstance()
-                Palette.entries(files.filter { it.isValid }.flatMap { file ->
+                grouped(Palette.entries(files.filter { it.isValid }.flatMap { file ->
                     documents.getDocument(file)?.let { Palette.scan(file, it, project) }.orEmpty()
-                })
+                }))
             }
         }
         scanning = true
@@ -253,10 +271,10 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         return action
             .expireWith(this)
             .coalesceBy(this)
-            .finishOnUiThread(ModalityState.any()) { entries ->
+            .finishOnUiThread(ModalityState.any()) { found ->
                 if (current != generation) return@finishOnUiThread
                 scanning = false
-                show(entries)
+                show(found)
             }
             .submit(AppExecutorUtil.getAppExecutorService())
     }
@@ -271,7 +289,7 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
             byColor.getOrPut(hex) { ArrayList() } += colors.map { PaletteOccurrence(file, TextRange(it.start, it.end), color, it.format) }
             if (System.currentTimeMillis() - shown > PARTIAL_INTERVAL_MS) {
                 shown = System.currentTimeMillis()
-                val partial = Palette.entries(byColor.values.flatten())
+                val partial = grouped(Palette.entries(byColor.values.flatten()))
                 ApplicationManager.getApplication().invokeLater({
                     if (current == generation && scanning) show(partial)
                 }, ModalityState.any())
@@ -281,11 +299,26 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         return Palette.entries(byColor.values.flatten())
     }
 
-    /** Shows [entries] in the chosen order, keeping the selected color selected. */
-    private fun show(entries: List<PaletteEntry>) {
-        val selected = list.selectedValue?.hex
-        model.replaceAll(Palette.sorted(entries, sort))
-        val index = model.items.indexOfFirst { it.hex == selected }
+    /** Groups near-duplicates (C-03.4), with the threshold from settings; in the background, it's quadratic. */
+    private fun grouped(entries: List<PaletteEntry>): List<PaletteGroup> =
+        Palette.groups(entries, ChromaboxSettings.getInstance().state.nearDuplicateThreshold)
+
+    /**
+     * Shows [found] in the chosen order, keeping the selected color selected: with [groupSimilar], each group's members
+     * under its leader; otherwise every color on its own.
+     */
+    private fun show(found: List<PaletteGroup>) {
+        groups = found
+        val selected = list.selectedValue?.entry?.hex
+        val rows = if (groupSimilar) {
+            Palette.sortedGroups(found, sort).flatMap { group ->
+                listOf(PaletteRow(group.leader, group, null)) + group.members.mapIndexed { i, member -> PaletteRow(member, group, group.distances[i]) }
+            }
+        } else {
+            Palette.sorted(found.flatMap { it.entries }, sort).map { PaletteRow(it, null, null) }
+        }
+        model.replaceAll(rows)
+        val index = rows.indexOfFirst { it.entry.hex == selected }
         if (index >= 0) list.selectedIndex = index
         updateEmptyText()
     }
@@ -300,8 +333,9 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         }
     }
 
-    // Test hook.
-    internal val entries: List<PaletteEntry> get() = model.items
+    // Test hooks.
+    internal val entries: List<PaletteEntry> get() = model.items.map { it.entry }
+    internal val rows: List<PaletteRow> get() = model.items
 
     /** One place: go there. Several: list them. */
     private fun open(entry: PaletteEntry) {
@@ -312,7 +346,9 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
 
     override fun uiDataSnapshot(sink: DataSink) {
         super.uiDataSnapshot(sink)
-        sink[ENTRY] = list.selectedValue
+        val row = list.selectedValue
+        sink[ENTRY] = row?.entry
+        sink[GROUP] = row?.group?.takeIf { it.members.isNotEmpty() }
     }
 
     override fun dispose() = Unit
@@ -322,6 +358,7 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         CopyAsGroup(),
         Separator.getInstance(),
         EntryAction("palette.action.replace") { e, entry -> replace(e.project ?: return@EntryAction, entry) },
+        MergeAction(),
     )
 
     private fun replace(project: Project, entry: PaletteEntry) {
@@ -331,6 +368,22 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         val files = entry.occurrences.map { it.file }.distinct()
         val result = PaletteActions.replace(project, files, entry.hex, ChromaColor.fromAwt(picked))
         PaletteActions.report(project, result)
+    }
+
+    /** Merges the selected color's group of near-duplicates into one color (C-03.6). */
+    private class MergeAction : DumbAwareAction(ChromaboxBundle.message("palette.action.merge")) {
+        override fun getActionUpdateThread() = ActionUpdateThread.EDT
+
+        override fun update(e: AnActionEvent) {
+            e.presentation.isEnabled = e.getData(GROUP) != null
+        }
+
+        override fun actionPerformed(e: AnActionEvent) {
+            val project = e.project ?: return
+            val dialog = MergeDialog(project, e.getData(GROUP) ?: return)
+            if (!dialog.showAndGet()) return
+            PaletteActions.report(project, PaletteActions.apply(project, dialog.plan, ChromaboxBundle.message("palette.merge.command")))
+        }
     }
 
     private class EntryAction(key: String, private val perform: (AnActionEvent, PaletteEntry) -> Unit) :
@@ -365,19 +418,34 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         }
     }
 
-    private class EntryRenderer : ColoredListCellRenderer<PaletteEntry>() {
-        override fun customizeCellRenderer(list: JList<out PaletteEntry>, value: PaletteEntry, index: Int, selected: Boolean, hasFocus: Boolean) {
-            icon = ColorSwatchRenderer.of(value.color)
-            append(value.hex)
-            append("  " + ChromaboxBundle.message("palette.uses", value.occurrences.size), SimpleTextAttributes.GRAYED_ATTRIBUTES)
-            val formats = value.formats.joinToString(", ") { ChromaboxBundle.message("palette.format.${it.name}") }
+    private class RowRenderer : ColoredListCellRenderer<PaletteRow>() {
+        // The renderer is reused, so a leader after a member needs its padding back.
+        private val baseLeft = ipad.left
+
+        override fun customizeCellRenderer(list: JList<out PaletteRow>, value: PaletteRow, index: Int, selected: Boolean, hasFocus: Boolean) {
+            val entry = value.entry
+            // Members sit under their leader.
+            ipad.left = if (value.distance != null) baseLeft + JBUI.scale(MEMBER_INDENT) else baseLeft
+            icon = ColorSwatchRenderer.of(entry.color)
+            append(entry.hex)
+            append("  " + ChromaboxBundle.message("palette.uses", entry.occurrences.size), SimpleTextAttributes.GRAYED_ATTRIBUTES)
+            val formats = entry.formats.joinToString(", ") { ChromaboxBundle.message("palette.format.${it.name}") }
             if (formats.isNotEmpty()) append("  $formats", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
+            val group = value.group
+            when {
+                value.distance != null -> append("  " + ChromaboxBundle.message("palette.distance", String.format(Locale.ROOT, "%.1f", value.distance)), SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
+                group != null && group.members.isNotEmpty() -> append("  " + ChromaboxBundle.message("palette.similar", group.members.size), SimpleTextAttributes.GRAY_ITALIC_ATTRIBUTES)
+            }
         }
     }
 
     companion object {
         val ENTRY = DataKey.create<PaletteEntry>("Chromabox.PaletteEntry")
 
+        /** The selected color's group, if it has near-duplicates. */
+        val GROUP = DataKey.create<PaletteGroup>("Chromabox.PaletteGroup")
+
+        private const val MEMBER_INDENT = 20
         private const val REFRESH_DELAY_MS = 300
         private const val PARTIAL_INTERVAL_MS = 200
     }

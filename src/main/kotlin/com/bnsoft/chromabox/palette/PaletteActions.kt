@@ -8,6 +8,7 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.ReadonlyStatusHandler
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
@@ -17,52 +18,88 @@ import com.intellij.usages.UsageInfo2UsageAdapter
 import com.intellij.usages.UsageTarget
 import com.intellij.usages.UsageViewManager
 import com.intellij.usages.UsageViewPresentation
+import org.jetbrains.annotations.Nls
 
 /** What a palette color can do (C-03.5). */
 object PaletteActions {
-    /** How a replace went: occurrences written, ones whose notation can't express the color, and read-only files. */
-    data class ReplaceResult(val written: Int, val unrepresentable: Int, val readOnlyFiles: Int)
+    /** [old] at [range] in [file] becomes [new]. */
+    data class Change(val file: VirtualFile, val range: TextRange, val old: String, val new: String)
+
+    /** The [changes] a replace or merge would make, and how many occurrences can't be written in their notation. */
+    data class Plan(val changes: List<Change>, val unrepresentable: Int)
 
     /**
-     * Writes [color] over every occurrence of the color [hex] in [files], each in its own notation, as one undoable
-     * command, undoable from any of the files it changed. The files are scanned again first, so what's written is
-     * what's there now. Skips read-only files and notations that can't express [color].
+     * How a replace or merge went: occurrences written, ones whose notation can't express the color, read-only files,
+     * and occurrences whose text changed after the plan was made.
      */
-    fun replace(project: Project, files: Collection<VirtualFile>, hex: String, color: ChromaColor): ReplaceResult {
-        val status = ReadonlyStatusHandler.getInstance(project).ensureFilesWritable(files)
-        val readOnly = status.readonlyFiles.toSet()
+    data class ReplaceResult(val written: Int, val unrepresentable: Int, val readOnlyFiles: Int, val changed: Int = 0)
+
+    /**
+     * What writing [color] over every occurrence of the colors [hexes] in [files] changes, each in its own notation.
+     * Scans the files again, so it's what's there now. Occurrences that would be written as they are, such as `red`
+     * merged into `#ff0000`, aren't changes. Needs a read action.
+     */
+    fun plan(project: Project, files: Collection<VirtualFile>, hexes: Set<String>, color: ChromaColor): Plan {
         var unrepresentable = 0
-        val edits = files.filter { it !in readOnly && it.isValid }.mapNotNull { file ->
-            val document = FileDocumentManager.getInstance().getDocument(file) ?: return@mapNotNull null
-            val occurrences = Palette.scan(file, document, project).filter { Palette.hex(it.color) == hex }
-            document to occurrences.sortedByDescending { it.range.startOffset }.mapNotNull { occurrence ->
-                val text = occurrence.write?.invoke(color)
-                if (text == null) unrepresentable++
-                text?.let { occurrence to it }
+        val changes = files.filter { it.isValid }.flatMap { file ->
+            val document = FileDocumentManager.getInstance().getDocument(file) ?: return@flatMap emptyList()
+            Palette.scan(file, document, project).filter { Palette.hex(it.color) in hexes }.mapNotNull { occurrence ->
+                val new = occurrence.write?.invoke(color)
+                if (new == null) unrepresentable++
+                val old = occurrence.text ?: return@mapNotNull null
+                if (new == null || new == old) null else Change(file, occurrence.range, old, new)
             }
-        }.filter { it.second.isNotEmpty() }
+        }
+        return Plan(changes, unrepresentable)
+    }
+
+    /**
+     * Makes the changes of [plan] as one command named [commandName], undoable from any of the files it changed.
+     * Skips read-only files, and changes whose text isn't what the plan saw any more.
+     */
+    fun apply(project: Project, plan: Plan, commandName: @Nls String): ReplaceResult {
+        val byFile = plan.changes.groupBy { it.file }
+        val status = ReadonlyStatusHandler.getInstance(project).ensureFilesWritable(byFile.keys)
+        val readOnly = status.readonlyFiles.toSet()
         var written = 0
-        if (edits.isNotEmpty()) {
+        var changed = 0
+        val edits = byFile.filterKeys { it !in readOnly && it.isValid }.mapNotNull { (file, changes) ->
+            val document = FileDocumentManager.getInstance().getDocument(file) ?: return@mapNotNull null
+            document to changes.sortedByDescending { it.range.startOffset }.filter { change ->
+                val current = change.range.endOffset <= document.textLength && document.getText(change.range) == change.old
+                if (!current) changed++
+                current
+            }
+        }
+        if (edits.any { it.second.isNotEmpty() }) {
             WriteCommandAction.writeCommandAction(project)
-                .withName(ChromaboxBundle.message("palette.replace.command"))
+                .withName(commandName)
                 .withGlobalUndo()
                 .run<RuntimeException> {
-                    for ((document, replacements) in edits) {
-                        for ((occurrence, text) in replacements) {
-                            document.replaceString(occurrence.range.startOffset, occurrence.range.endOffset, text)
+                    for ((document, changes) in edits) {
+                        for (change in changes) {
+                            document.replaceString(change.range.startOffset, change.range.endOffset, change.new)
                             written++
                         }
                     }
                 }
         }
-        return ReplaceResult(written, unrepresentable, files.count { it in readOnly })
+        return ReplaceResult(written, plan.unrepresentable, byFile.keys.count { it in readOnly }, changed)
     }
+
+    /**
+     * Writes [color] over every occurrence of the color [hex] in [files], each in its own notation, as one undoable
+     * command, undoable from any of the files it changed. Skips read-only files and notations that can't express it.
+     */
+    fun replace(project: Project, files: Collection<VirtualFile>, hex: String, color: ChromaColor): ReplaceResult =
+        apply(project, plan(project, files, setOf(hex), color), ChromaboxBundle.message("palette.replace.command"))
 
     /** Tells what [replace] skipped; says nothing if it skipped nothing. */
     fun report(project: Project, result: ReplaceResult) {
         val skipped = buildList {
             if (result.unrepresentable > 0) add(ChromaboxBundle.message("palette.replace.unrepresentable", result.unrepresentable))
             if (result.readOnlyFiles > 0) add(ChromaboxBundle.message("palette.replace.readOnly", result.readOnlyFiles))
+            if (result.changed > 0) add(ChromaboxBundle.message("palette.replace.changed", result.changed))
         }
         if (skipped.isEmpty()) return
         NotificationGroupManager.getInstance().getNotificationGroup(NOTIFICATIONS)

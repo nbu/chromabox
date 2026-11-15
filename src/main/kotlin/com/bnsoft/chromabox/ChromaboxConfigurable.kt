@@ -10,6 +10,7 @@ import com.intellij.ui.dsl.builder.Cell
 import com.intellij.ui.dsl.builder.bind
 import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.bindText
+import com.intellij.ui.dsl.builder.bindValue
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.builder.selected
 
@@ -77,6 +78,13 @@ class ChromaboxConfigurable : BoundConfigurable(ChromaboxBundle.message("setting
                 checkBox(ChromaboxBundle.message("settings.showApca"))
                     .bindSelected(state::showApca)
                     .comment(ChromaboxBundle.message("settings.showApca.comment"))
+            }
+        }
+        group(ChromaboxBundle.message("settings.palette")) {
+            row(ChromaboxBundle.message("settings.nearDuplicateThreshold")) {
+                spinner(0.5..10.0, 0.1)
+                    .bindValue(state::nearDuplicateThreshold)
+                    .comment(ChromaboxBundle.message("settings.nearDuplicateThreshold.comment"))
             }
         }
         if (PluginManagerCore.getPlugin(PluginId.getId("org.intellij.plugins.markdown"))?.isEnabled == true) {

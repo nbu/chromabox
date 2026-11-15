@@ -60,6 +60,12 @@ project and other scopes use an index of the project's files, so they're quick, 
 usages, copy it as hex, `rgb()`, `hsl()`, `oklch()`, Compose or SwiftUI, or replace it everywhere: each occurrence is
 rewritten in its own notation, and one undo reverts them all. Double-click a color to go to it.
 
+Colors that look nearly the same are grouped under the most used one, with how far each is from it (CIEDE2000; under 1
+is barely visible). Set how close they must be under _Palette_ in settings, 2 by default, or clear _Group similar_ to
+list every color on its own. _Merge Group Into…_ picks one of the group's colors, or any other, and shows every change
+by file before writing it; each occurrence keeps its notation, and one undo reverts the merge. Read-only files and text
+that changed after the preview are left as they are and reported.
+
 The Markdown preview shows a swatch before each color too, in prose, tables, inline code and code fences, in Swatch
 only and Swatch and hex modes. Colors are found the same way as in the editor, so the format settings apply. Preview
 swatches can't be clicked; turn them off under _Markdown preview_ in settings.

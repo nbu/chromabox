@@ -26,7 +26,8 @@
         <code>bg</code> keys, or two colors on one line: <code>4.6:1 AA</code>. Hover a badge for details and a
         <b>Fix</b> that adjusts the foreground's lightness until it passes.<br>
         The <b>Chromabox</b> tool window lists the colors of a file, the open files or the whole project with usage counts: find usages,
-        copy as another notation, or replace a color everywhere, each occurrence in its own notation.<br>
+        copy as another notation, or replace a color everywhere, each occurrence in its own notation. Near-duplicate colors are
+        grouped, and a group can be merged into one color after a preview.<br>
         The Markdown preview shows swatches too.<br>
         <em>Simulate Color Vision</em> draws swatches and contrast badges as people with protanopia, deuteranopia,
         tritanopia or achromatopsia see them.<br>
