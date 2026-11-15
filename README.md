@@ -53,6 +53,12 @@ turned on in settings, the APCA lightness contrast (Lc). **Fix** changes the for
 and chroma, to the nearest color that reaches AA or AAA, and writes it in the same notation; one undo reverts it. To
 check any two colors, put a caret on each (or select both) and use _Chromabox | Check Contrast_.
 
+The **Chromabox** tool window lists the colors of the current file or all open files: each color once, with how
+often it's used and the formats it's written in, sorted by usage, hue or lightness. Colors written differently, like
+`#FF0000`, `rgb(255, 0, 0)` and `red`, are one entry, and gradient stops count too. Right-click a color to find its
+usages, copy it as hex, `rgb()`, `hsl()`, `oklch()`, Compose or SwiftUI, or replace it everywhere: each occurrence is
+rewritten in its own notation, and one undo reverts them all. Double-click a color to go to it.
+
 The Markdown preview shows a swatch before each color too, in prose, tables, inline code and code fences, in Swatch
 only and Swatch and hex modes. Colors are found the same way as in the editor, so the format settings apply. Preview
 swatches can't be clicked; turn them off under _Markdown preview_ in settings.
