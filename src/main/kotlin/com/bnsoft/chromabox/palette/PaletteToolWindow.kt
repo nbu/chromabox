@@ -1,6 +1,7 @@
 package com.bnsoft.chromabox.palette
 
 import com.bnsoft.chromabox.ChromaboxBundle
+import com.bnsoft.chromabox.ChromaboxConfigurable
 import com.bnsoft.chromabox.ChromaboxSettings
 import com.bnsoft.chromabox.ChromaboxSettingsListener
 import com.bnsoft.chromabox.ColorSwatchRenderer
@@ -37,6 +38,7 @@ import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.ide.CopyPasteManager
+import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.DumbAwareAction
@@ -125,8 +127,8 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
     // Each refresh's number; partial results of an older one are dropped.
     private var generation = 0
 
-    /** Replaces the scope chosen in [customScope]; for tests. */
-    internal var customScopeOverride: GlobalSearchScope? = null
+    /** Replaces the scope chosen in [customScope], which fills in asynchronously; for tests. Returns null for none. */
+    internal var customScopeOverride: (() -> GlobalSearchScope?)? = null
 
     internal var scope: PaletteScope
         get() = scopeBox.item
@@ -232,7 +234,7 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
     /** The search scope of an indexed scope; null while no custom scope is chosen. */
     private fun searchScope(): GlobalSearchScope? = when (scope) {
         PaletteScope.PROJECT -> GlobalSearchScope.projectScope(project)
-        PaletteScope.CUSTOM -> customScopeOverride ?: when (val chosen = customScope.selectedScope) {
+        PaletteScope.CUSTOM -> customScopeOverride?.let { return it() } ?: when (val chosen = customScope.selectedScope) {
             is GlobalSearchScope -> chosen
             is LocalSearchScope -> GlobalSearchScope.filesScope(project, chosen.virtualFiles.toList())
             else -> null
@@ -266,7 +268,7 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         val current = ++generation
         val action = if (scope.indexed) {
             val searchScope = searchScope()
-            if (searchScope == null) {
+            if (searchScope == null || !ColorIndex.enabled) {
                 scanning = false
                 show(emptyList())
                 return null
@@ -339,6 +341,13 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
     }
 
     private fun updateEmptyText() {
+        if (scope.indexed && !ColorIndex.enabled) {
+            list.emptyText.text = ChromaboxBundle.message("palette.empty.indexOff")
+            list.emptyText.appendLine(ChromaboxBundle.message("palette.empty.indexOff.turnOn"), SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES) {
+                ShowSettingsUtil.getInstance().showSettingsDialog(project, ChromaboxConfigurable::class.java)
+            }
+            return
+        }
         list.emptyText.text = when {
             scanning && scope.indexed && DumbService.isDumb(project) -> ChromaboxBundle.message("palette.empty.indexing")
             scanning -> ChromaboxBundle.message("palette.empty.scanning")

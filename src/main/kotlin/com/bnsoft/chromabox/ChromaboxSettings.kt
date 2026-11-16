@@ -75,6 +75,9 @@ class ChromaboxSettings : PersistentStateComponent<ChromaboxSettings.SettingsSta
         /** CIEDE2000 under which palette colors are grouped as near-duplicates (C-03.4), 0.5 to 10. */
         var nearDuplicateThreshold: Double = DEFAULT_NEAR_DUPLICATE_THRESHOLD
 
+        /** Whether the project's colors are indexed for the palette's Project and Custom scopes (C-03.2). */
+        var indexProjectColors: Boolean = true
+
         /** The format and file-type settings the color index was built with (C-03.2); see `ColorIndex`. */
         var colorIndexFingerprint: String = ""
 

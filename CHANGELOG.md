@@ -32,7 +32,8 @@
   text and UI components, sample text, optional APCA, and a fix that adjusts the foreground's lightness to reach AA or
   AAA.
 - Chromabox tool window: the colors of the current file, open files, the project or any scope, with usage counts
-  and formats, sorted by usage, hue or lightness. The project and other scopes use an index. Find usages, copy as hex, `rgb()`, `hsl()`, `oklch()`, Compose or SwiftUI, and replace a
+  and formats, sorted by usage, hue or lightness. The project and other scopes use an index, which can be turned off
+  for very large projects. Find usages, copy as hex, `rgb()`, `hsl()`, `oklch()`, Compose or SwiftUI, and replace a
   color everywhere, each occurrence in its own notation, as one undo step. Colors that look nearly the same
   (CIEDE2000 under 2, adjustable) are grouped, and a group can be merged into one color after a preview of every
   change by file. Export the listed colors as JSON, CSS custom properties, a GIMP palette (`.gpl`) or a Markdown

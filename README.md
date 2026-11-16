@@ -55,7 +55,9 @@ check any two colors, put a caret on each (or select both) and use _Chromabox | 
 
 The **Chromabox** tool window lists the colors of the current file, the open files, the whole project or any scope:
 each color once, with how often it's used and the formats it's written in, sorted by usage, hue or lightness. The
-project and other scopes use an index of the project's files, so they're quick, and colors show up as they're found. Colors written differently, like
+project and other scopes use an index of the project's files, so they're quick, and colors show up as they're found.
+For very large projects, clear _Index project colors_ under _Palette_ in settings to skip indexing; the current and
+open files still work. Colors written differently, like
 `#FF0000`, `rgb(255, 0, 0)` and `red`, are one entry, and gradient stops count too. Right-click a color to find its
 usages, copy it as hex, `rgb()`, `hsl()`, `oklch()`, Compose or SwiftUI, or replace it everywhere: each occurrence is
 rewritten in its own notation, and one undo reverts them all. Double-click a color to go to it.

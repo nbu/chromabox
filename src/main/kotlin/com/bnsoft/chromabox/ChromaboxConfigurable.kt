@@ -81,6 +81,11 @@ class ChromaboxConfigurable : BoundConfigurable(ChromaboxBundle.message("setting
             }
         }
         group(ChromaboxBundle.message("settings.palette")) {
+            row {
+                checkBox(ChromaboxBundle.message("settings.indexProjectColors"))
+                    .bindSelected(state::indexProjectColors)
+                    .comment(ChromaboxBundle.message("settings.indexProjectColors.comment"))
+            }
             row(ChromaboxBundle.message("settings.nearDuplicateThreshold")) {
                 spinner(0.5..10.0, 0.1)
                     .bindValue(state::nearDuplicateThreshold)

@@ -25,6 +25,7 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.util.indexing.FileBasedIndex
+import com.intellij.util.indexing.FileContentImpl
 
 class PaletteTest : BasePlatformTestCase() {
     private val settings get() = ChromaboxSettings.getInstance()
@@ -188,10 +189,11 @@ class PaletteTest : BasePlatformTestCase() {
         assertEquals(listOf("#ff0000" to 2, "#00ff00" to 1), panel.entries.map { it.hex to it.occurrences.size })
         assertEquals(setOf("a.md", "b.md"), panel.entries[0].occurrences.map { it.file.name }.toSet())
 
+        panel.customScopeOverride = { null }
         panel.scope = PaletteScope.CUSTOM
         assertNull(panel.refresh())
         assertEmpty(panel.entries)
-        panel.customScopeOverride = GlobalSearchScope.filesScope(project, listOf(a))
+        panel.customScopeOverride = { GlobalSearchScope.filesScope(project, listOf(a)) }
         PlatformTestUtil.waitForPromise(panel.refresh()!!)
         assertEquals(listOf("#00ff00" to 1, "#ff0000" to 1), panel.entries.map { it.hex to it.occurrences.size })
     }
@@ -304,5 +306,28 @@ class PaletteTest : BasePlatformTestCase() {
         val text = panel.exportText(PaletteExport.GPL)
         assertTrue(text, text.startsWith("GIMP Palette\nName: ${project.name} colors (Current file)\n"))
         assertTrue(text, text.endsWith("255   0   0\t#ff0000\n  0   0 255\t#0000ff\n"))
+    }
+
+    fun `test with indexing off, nothing is indexed and the project scope says how to turn it on`() {
+        val file = myFixture.addFileToProject("a.md", "#ff0000").virtualFile
+        val filter = ColorIndex().inputFilter as FileBasedIndex.ProjectSpecificInputFilter
+        val content = FileContentImpl.createByFile(file, project)
+        assertTrue(filter.acceptInput(content))
+        val before = ColorIndex.settingsFingerprint()
+        val panel = PalettePanel(project) { true }
+        Disposer.register(testRootDisposable, panel)
+        panel.scope = PaletteScope.PROJECT
+        try {
+            settings.state.indexProjectColors = false
+            assertFalse(filter.acceptInput(content))
+            assertFalse(before == ColorIndex.settingsFingerprint())
+            assertNull(panel.refresh())
+            assertEmpty(panel.entries)
+            assertEquals("Project colors aren't indexed", panel.list.emptyText.text)
+        } finally {
+            settings.state.indexProjectColors = true
+        }
+        PlatformTestUtil.waitForPromise(panel.refresh()!!)
+        assertEquals(listOf("#ff0000"), panel.entries.map { it.hex })
     }
 }
