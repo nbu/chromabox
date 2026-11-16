@@ -8,14 +8,27 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.util.Disposer
+import kotlinx.coroutines.CoroutineScope
 
 /**
- * Parent of every [EditorLensController]. The platform disposes it when the plugin is unloaded, so no editor keeps
- * a reference to plugin classes and the plugin can be updated or removed without an IDE restart.
+ * Parent of every [EditorLensController], through [controllers]. The platform disposes it when the plugin is unloaded,
+ * so no editor keeps a reference to plugin classes and the plugin can be updated or removed without an IDE restart.
+ * Lenses added or removed by other plugins count as a settings change, so editors, the palette and the index catch up.
  */
 @Service(Service.Level.APP)
-class ChromaboxLifetime : Disposable {
-    fun disposeControllers() = Disposer.disposeChildren(this) { true }
+class ChromaboxLifetime(scope: CoroutineScope) : Disposable {
+    /** The parent of the editor controllers; replaced when they're disposed. */
+    var controllers: Disposable = Disposer.newDisposable(this, "Chromabox editor controllers")
+        private set
+
+    init {
+        ChromaboxHost.LENS_EP.addChangeListener(scope) { ChromaboxSettings.getInstance().notifyChanged() }
+    }
+
+    fun disposeControllers() {
+        Disposer.dispose(controllers)
+        controllers = Disposer.newDisposable(this, "Chromabox editor controllers")
+    }
 
     override fun dispose() = Unit
 

@@ -1,7 +1,6 @@
 package com.bnsoft.chromabox
 
-import com.intellij.ide.plugins.PluginManagerCore
-import com.intellij.openapi.extensions.PluginId
+import com.bnsoft.chromabox.markdown.MarkdownPreviewSupport
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.components.JBCheckBox
@@ -72,7 +71,7 @@ class ChromaboxConfigurable : BoundConfigurable(ChromaboxBundle.message("setting
             buttonsGroup {
                 row(ChromaboxBundle.message("settings.contrastBadges")) {
                     for (badges in ContrastBadges.entries) radioButton(ChromaboxBundle.message("contrastBadges.${badges.name}"), badges)
-                }.comment(ChromaboxBundle.message("settings.contrastBadges.comment"))
+                }.rowComment(ChromaboxBundle.message("settings.contrastBadges.comment"))
             }.bind(state::contrastBadges)
             row {
                 checkBox(ChromaboxBundle.message("settings.showApca"))
@@ -86,13 +85,13 @@ class ChromaboxConfigurable : BoundConfigurable(ChromaboxBundle.message("setting
                     .bindSelected(state::indexProjectColors)
                     .comment(ChromaboxBundle.message("settings.indexProjectColors.comment"))
             }
+            // Comments go under the whole row: under a cell after a long label, they'd widen the page.
             row(ChromaboxBundle.message("settings.nearDuplicateThreshold")) {
                 spinner(0.5..10.0, 0.1)
                     .bindValue(state::nearDuplicateThreshold)
-                    .comment(ChromaboxBundle.message("settings.nearDuplicateThreshold.comment"))
-            }
+            }.rowComment(ChromaboxBundle.message("settings.nearDuplicateThreshold.comment"))
         }
-        if (PluginManagerCore.getPlugin(PluginId.getId("org.intellij.plugins.markdown"))?.isEnabled == true) {
+        if (MarkdownPreviewSupport.isAvailable) {
             group(ChromaboxBundle.message("settings.markdownPreview")) {
                 row {
                     checkBox(ChromaboxBundle.message("settings.showInMarkdownPreview"))

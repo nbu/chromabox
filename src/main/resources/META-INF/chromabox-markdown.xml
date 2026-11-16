@@ -3,4 +3,7 @@
     <extensions defaultExtensionNs="org.intellij.markdown">
         <browserPreviewExtensionProvider implementation="com.bnsoft.chromabox.markdown.ChromaboxPreviewExtension$Provider"/>
     </extensions>
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationService serviceImplementation="com.bnsoft.chromabox.markdown.MarkdownPreviewSupport"/>
+    </extensions>
 </idea-plugin>
