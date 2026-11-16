@@ -6,6 +6,7 @@ import com.bnsoft.chromabox.ColorFormat
 import com.bnsoft.chromabox.Gradient
 import com.bnsoft.chromabox.color.ChromaColor
 import com.bnsoft.chromabox.color.ColorSpaces
+import com.bnsoft.chromabox.color.DeltaE
 import com.bnsoft.chromabox.engine.Lens
 import com.bnsoft.chromabox.engine.LensContext
 import com.bnsoft.chromabox.engine.LensMatch
@@ -36,6 +37,14 @@ class PaletteEntry(val color: ChromaColor, val occurrences: List<PaletteOccurren
     val hex: String get() = Palette.hex(color)
 
     val formats: List<ColorFormat> get() = occurrences.mapNotNull { it.format }.distinct().sorted()
+}
+
+/**
+ * Colors that look nearly the same (C-03.4): [leader], the most used, and [members] that differ from it by less than
+ * the threshold, nearest first, with their CIEDE2000 [distances] from it.
+ */
+class PaletteGroup(val leader: PaletteEntry, val members: List<PaletteEntry>, val distances: List<Double>) {
+    val entries: List<PaletteEntry> get() = listOf(leader) + members
 }
 
 enum class PaletteSort { USAGE, HUE, LIGHTNESS }
@@ -84,6 +93,37 @@ object Palette {
         PaletteSort.HUE -> entries.sortedWith(compareBy<PaletteEntry>({ hue(it.color) }, { lightness(it.color) }, { it.hex }))
         PaletteSort.LIGHTNESS -> entries.sortedWith(compareBy<PaletteEntry>({ lightness(it.color) }, { it.hex }))
     }
+
+    /**
+     * Groups near-duplicates (C-03.4): the most used color not yet in a group leads one, with every other such color
+     * within [threshold] of it. Distances are from the leader, so a group doesn't drift through a chain of colors each
+     * close to the next. Colors whose alpha differs more than a little aren't grouped.
+     */
+    fun groups(entries: List<PaletteEntry>, threshold: Double): List<PaletteGroup> {
+        val remaining = sorted(entries, PaletteSort.USAGE).map { it to ColorSpaces.toLab(it.color) }.toMutableList()
+        val groups = ArrayList<PaletteGroup>()
+        while (remaining.isNotEmpty()) {
+            val (leader, lab) = remaining.removeAt(0)
+            val near = remaining.mapNotNull { (entry, other) ->
+                if (kotlin.math.abs(entry.color.alpha - leader.color.alpha) > ALPHA_TOLERANCE) return@mapNotNull null
+                val distance = DeltaE.ciede2000(lab, other)
+                if (distance < threshold) entry to distance else null
+            }.sortedBy { it.second }
+            val members = near.map { it.first }.toSet()
+            remaining.removeAll { it.first in members }
+            groups += PaletteGroup(leader, near.map { it.first }, near.map { it.second })
+        }
+        return groups
+    }
+
+    /** [groups] in the order [sort] puts their leaders in. */
+    fun sortedGroups(groups: List<PaletteGroup>, sort: PaletteSort): List<PaletteGroup> {
+        val byLeader = groups.associateBy { it.leader }
+        return sorted(groups.map { it.leader }, sort).map { byLeader.getValue(it) }
+    }
+
+    // Alpha difference under which two colors can still be near-duplicates: about 5 in 8 bits.
+    private const val ALPHA_TOLERANCE = 0.02
 
     private fun hue(color: ChromaColor): Double {
         val oklch = ColorSpaces.toOklch(color)

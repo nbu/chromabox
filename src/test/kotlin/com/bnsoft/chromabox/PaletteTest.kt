@@ -4,6 +4,8 @@ import com.bnsoft.chromabox.color.ChromaColor
 import com.bnsoft.chromabox.palette.ColorIndex
 import com.bnsoft.chromabox.palette.CopyFormat
 import com.bnsoft.chromabox.palette.IndexedColor
+import com.bnsoft.chromabox.palette.MergeDialog
+import com.bnsoft.chromabox.palette.MergePreview
 import com.bnsoft.chromabox.palette.Palette
 import com.bnsoft.chromabox.palette.PaletteActions
 import com.bnsoft.chromabox.palette.PalettePanel
@@ -191,5 +193,77 @@ class PaletteTest : BasePlatformTestCase() {
         panel.customScopeOverride = GlobalSearchScope.filesScope(project, listOf(a))
         PlatformTestUtil.waitForPromise(panel.refresh()!!)
         assertEquals(listOf("#00ff00" to 1, "#ff0000" to 1), panel.entries.map { it.hex to it.occurrences.size })
+    }
+
+    fun `test near-duplicates group under the most used, measured from it, alpha apart`() {
+        // Each gray is about 1.2 from the next, so #868686 is about 2.4 from #808080 and doesn't join through #838383.
+        val file = myFixture.configureByText("a.md", "#808080 #808080 #838383 #868686 #80808080 #0000ff\n").virtualFile
+        val groups = Palette.groups(entries(file), 2.0)
+        assertEquals(
+            setOf(listOf("#808080", "#838383"), listOf("#868686"), listOf("#80808080"), listOf("#0000ff")),
+            groups.map { group -> group.entries.map { it.hex } }.toSet(),
+        )
+        val distance = groups.first { it.members.isNotEmpty() }.distances.single()
+        assertTrue("$distance", distance in 0.5..2.0)
+        assertEquals(1, Palette.groups(entries(file), 10.0).count { it.leader.hex == "#808080" && it.members.size == 2 })
+    }
+
+    fun `test the panel shows members under their leader, or every color on its own`() {
+        myFixture.configureByText("a.md", "#808080 #808080 #808080 #838383 #0000ff #0000ff\n")
+        val panel = PalettePanel(project) { true }
+        Disposer.register(testRootDisposable, panel)
+        PlatformTestUtil.waitForPromise(panel.refresh()!!)
+        assertEquals(listOf("#808080" to false, "#838383" to true, "#0000ff" to false), panel.rows.map { it.entry.hex to (it.distance != null) })
+        assertEquals(listOf(2, 2, 1), panel.rows.map { it.group!!.entries.size })
+
+        panel.groupSimilar = false
+        assertEquals(listOf("#808080", "#0000ff", "#838383"), panel.entries.map { it.hex })
+        assertTrue(panel.rows.all { it.group == null && it.distance == null })
+    }
+
+    fun `test merge plans each file's changes in its notation, and applies them as one undo step`() {
+        val first = myFixture.addFileToProject("a.md", "#808080 rgb(131, 131, 131) #808080\n").virtualFile
+        val second = myFixture.addFileToProject("b.md", "#838383 and gray\n").virtualFile
+        val documents = FileDocumentManager.getInstance()
+        val plan = runReadAction { PaletteActions.plan(project, listOf(first, second), setOf("#808080", "#838383"), ChromaColor.fromRgb255(128, 128, 128)) }
+        // "gray" is #808080 already, and so are two others: they aren't changes.
+        assertEquals(listOf("a.md: rgb(131, 131, 131) -> rgb(128, 128, 128)", "b.md: #838383 -> #808080"), plan.changes.map { "${it.file.name}: ${it.old} -> ${it.new}" })
+        val tree = MergePreview.model(plan)
+        val root = tree.root as javax.swing.tree.DefaultMutableTreeNode
+        assertEquals(2, root.childCount)
+        assertEquals(1, ((root.firstChild as javax.swing.tree.DefaultMutableTreeNode).firstChild as javax.swing.tree.DefaultMutableTreeNode).let { (it.userObject as MergePreview.ChangeNode).line })
+
+        val result = PaletteActions.apply(project, plan, "Merge")
+        assertEquals(PaletteActions.ReplaceResult(written = 2, unrepresentable = 0, readOnlyFiles = 0), result)
+        assertEquals("#808080 rgb(128, 128, 128) #808080\n", documents.getDocument(first)!!.text)
+        assertEquals("#808080 and gray\n", documents.getDocument(second)!!.text)
+
+        myFixture.openFileInEditor(second)
+        UndoManager.getInstance(project).undo(FileEditorManager.getInstance(project).getSelectedEditor(second) as TextEditor)
+        assertEquals("#808080 rgb(131, 131, 131) #808080\n", documents.getDocument(first)!!.text)
+        assertEquals("#838383 and gray\n", documents.getDocument(second)!!.text)
+    }
+
+    fun `test apply skips changes whose text changed after the preview`() {
+        val file = myFixture.configureByText("a.md", "#838383 #838383\n").virtualFile
+        val plan = runReadAction { PaletteActions.plan(project, listOf(file), setOf("#838383"), ChromaColor.fromRgb255(128, 128, 128)) }
+        WriteCommandAction.runWriteCommandAction(project) { myFixture.editor.document.replaceString(0, 7, "#123456") }
+        val result = PaletteActions.apply(project, plan, "Merge")
+        assertEquals(PaletteActions.ReplaceResult(written = 1, unrepresentable = 0, readOnlyFiles = 0, changed = 1), result)
+        assertEquals("#123456 #808080\n", myFixture.editor.document.text)
+    }
+
+    fun `test the merge dialog offers the group's colors and plans for the chosen one`() {
+        myFixture.configureByText("a.md", "#808080 #808080 #838383\n")
+        val group = Palette.groups(entries(myFixture.file.virtualFile), 2.0).single()
+        val dialog = MergeDialog(project, group)
+        try {
+            assertEquals("#808080", Palette.hex(dialog.target))
+            assertEquals(listOf("#838383"), dialog.plan.changes.map { it.old })
+            dialog.target = ChromaColor.fromRgb255(1, 2, 3)
+            assertEquals(listOf("#010203", "#010203", "#010203"), dialog.plan.changes.map { it.new })
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
     }
 }
