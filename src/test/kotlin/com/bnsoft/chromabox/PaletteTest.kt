@@ -8,6 +8,7 @@ import com.bnsoft.chromabox.palette.MergeDialog
 import com.bnsoft.chromabox.palette.MergePreview
 import com.bnsoft.chromabox.palette.Palette
 import com.bnsoft.chromabox.palette.PaletteActions
+import com.bnsoft.chromabox.palette.PaletteExport
 import com.bnsoft.chromabox.palette.PalettePanel
 import com.bnsoft.chromabox.palette.PaletteScope
 import com.bnsoft.chromabox.palette.PaletteSort
@@ -265,5 +266,43 @@ class PaletteTest : BasePlatformTestCase() {
         } finally {
             Disposer.dispose(dialog.disposable)
         }
+    }
+
+    fun `test export formats`() {
+        val file = myFixture.configureByText("a.md", "#FF0000 rgb(255, 0, 0) #0000ff80\n").virtualFile
+        val entries = entries(file)
+        assertEquals(
+            """
+            {
+              "name": "My \"app\"",
+              "colors": [
+                { "hex": "#ff0000", "rgb": [255, 0, 0], "alpha": 1, "uses": 2, "formats": ["hex", "css-functions"] },
+                { "hex": "#0000ff80", "rgb": [0, 0, 255], "alpha": 0.502, "uses": 1, "formats": ["hex"] }
+              ]
+            }
+
+            """.trimIndent(),
+            PaletteExport.JSON.export(entries, "My \"app\""),
+        )
+        assertEquals("{\n  \"name\": \"x\",\n  \"colors\": []\n}\n", PaletteExport.JSON.export(emptyList(), "x"))
+        assertEquals(":root {\n  --color-ff0000: #ff0000;\n  --color-0000ff80: #0000ff80;\n}\n", PaletteExport.CSS.export(entries, "x").substringAfter("*/\n"))
+        assertEquals(
+            "GIMP Palette\nName: x\nColumns: 0\n#\n255   0   0\t#ff0000\n  0   0 255\t#0000ff80\n",
+            PaletteExport.GPL.export(entries, "x"),
+        )
+        assertEquals(
+            "# x\n\n| Color | Uses | Formats |\n| --- | ---: | --- |\n| `#ff0000` | 2 | hex, css-functions |\n| `#0000ff80` | 1 | hex |\n",
+            PaletteExport.MARKDOWN.export(entries, "x"),
+        )
+    }
+
+    fun `test the panel exports what it lists, in its order`() {
+        myFixture.configureByText("a.md", "#0000ff #ff0000 #ff0000\n")
+        val panel = PalettePanel(project) { true }
+        Disposer.register(testRootDisposable, panel)
+        PlatformTestUtil.waitForPromise(panel.refresh()!!)
+        val text = panel.exportText(PaletteExport.GPL)
+        assertTrue(text, text.startsWith("GIMP Palette\nName: ${project.name} colors (Current file)\n"))
+        assertTrue(text, text.endsWith("255   0   0\t#ff0000\n  0   0 255\t#0000ff\n"))
     }
 }

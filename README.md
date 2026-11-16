@@ -66,6 +66,13 @@ list every color on its own. _Merge Group Into…_ picks one of the group's colo
 by file before writing it; each occurrence keeps its notation, and one undo reverts the merge. Read-only files and text
 that changed after the preview are left as they are and reported.
 
+_Export_ in the tool window's bar saves the listed colors, in the order they're listed, as:
+
+- **JSON**: each color's hex, RGB, alpha, uses and formats.
+- **CSS custom properties**: `--color-ff0000: #ff0000;` on `:root`.
+- **GIMP palette** (`.gpl`), which Inkscape, Krita and others read too. It has no alpha; each color's name keeps its full hex.
+- **Markdown table**: color, uses and formats; the Markdown preview shows a swatch before each color.
+
 The Markdown preview shows a swatch before each color too, in prose, tables, inline code and code fences, in Swatch
 only and Swatch and hex modes. Colors are found the same way as in the editor, so the format settings apply. Preview
 swatches can't be clicked; turn them off under _Markdown preview_ in settings.
