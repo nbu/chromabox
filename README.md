@@ -1,15 +1,36 @@
 # Chromabox
 
-[![Twitter Follow](https://img.shields.io/badge/follow-%40JBPlatform-1DA1F2?logo=twitter)](https://twitter.com/JBPlatform)
-[![Developers Forum](https://img.shields.io/badge/JetBrains%20Platform-Join-blue)][jb:forum]
-
 ![Chromabox](docs/chromabox-banner.png)
 
-## Overview
+Chromabox shows color swatches next to colors in any text file, such as Markdown, YAML, JSON, CSV or source code, in
+IntelliJ IDEA and the other JetBrains IDEs. Click a swatch to pick a new color; it's written back in the notation it
+was written in. It also checks the contrast of colors that belong together, lists every color in a project with the
+ones that are nearly the same, shows swatches in the Markdown preview, and shows colors as people with a color vision
+deficiency see them.
 
-Chromabox shows color swatches next to colors in any text file, such as Markdown, CSV, JSON, YAML or source code.
-Click a swatch to open the color picker; the picked color is written back in the notation it was written in, and one
-undo reverts the whole pick.
+![Swatches in a YAML file, with contrast badges and the Chromabox tool window](docs/screenshots/editor.png)
+
+- [Installation](#installation)
+- [Swatches](#swatches)
+- [Display modes](#display-modes)
+- [Contrast](#contrast)
+- [The Chromabox tool window](#the-chromabox-tool-window)
+- [Markdown preview](#markdown-preview)
+- [Color vision](#color-vision)
+- [Settings](#settings)
+- [Building from source](#building-from-source)
+
+## Installation
+
+In the IDE, open _Settings | Plugins | Marketplace_, search for **Chromabox**, and install it.
+Chromabox works in IntelliJ IDEA and the other IntelliJ-based IDEs, 2026.2 and later, and it doesn't use the network.
+
+To install a build instead, use _Settings | Plugins | ⚙ | Install Plugin from Disk_ and choose the `.zip` file.
+
+## Swatches
+
+Every color Chromabox recognizes gets a swatch. Click it to open the color picker; the picked color is written back in
+the same notation, and one undo reverts the whole pick.
 
 | Format | Examples | Default |
 |---|---|---|
@@ -33,204 +54,117 @@ notations Chromabox doesn't edit, such as `transparent`, are drawn but can't be 
 as `var(--accent)`, are left out. Three or more colors in a row, separated by commas, spaces or arrows, can get a strip
 of their colors after the last one; turn on _Color sequences_ in settings. Each color keeps its own swatch.
 
-Display modes (_View | Chromabox_, the editor context menu, or _Settings | Tools | Chromabox_):
+Colors the IDE already shows a swatch for, such as AWT colors in Java, don't get a second one. CSS-like files (CSS,
+SCSS, Sass, Less, Stylus, PostCSS) are skipped by default, since the IDE has its own swatches there. Files larger than
+2 million characters aren't scanned.
+
+## Display modes
+
+Switch modes in _View | Chromabox_, from the editor's context menu, or in settings. _Cycle Chromabox Display Mode_
+goes through them and can be given a shortcut.
 
 - **Swatch only**: the color text is folded away behind the swatch. Select the swatch, or use _Expand_, to edit the
   text.
-- **Swatch and hex**: the swatch is shown before the color text.
+- **Swatch and hex**: the swatch is shown before the color text. This is the default.
 - **Gutter**: the text stays as it is; each line with colors gets a gutter icon, split into segments for up to four
   colors. Click it to pick a color, from a list if the line has several.
 - **Off**: plain text.
 
-Colors that belong together get a contrast badge with their WCAG 2.2 ratio and level, such as `4.6:1 AA`, after the
-second color: a foreground and background key in one block (`fg`/`bg`, `foreground`/`background`,
-`color`/`background-color`, `text`/`surface`, Material's `onPrimary`/`primary`), or exactly two colors on one line.
+![Gutter mode in a TypeScript file](docs/screenshots/gutter.png)
+
+## Contrast
+
+Colors that belong together get a badge with their WCAG 2.2 contrast ratio and level, such as `4.6:1 AA`, after the
+second color:
+
+- a foreground and background key in one block: `fg`/`bg`, `foreground`/`background`, `color`/`background-color`,
+  `text`/`surface`, or Material's `onPrimary`/`primary`;
+- exactly two colors on one line.
+
 A translucent foreground is blended over its background; a translucent background makes the ratio approximate
 (`~4.6:1`). Badges can be shown always, only when failing AA, or never.
 
 Hover or click a badge for details: results for normal text, large text and UI components, sample text, and, if
 turned on in settings, the APCA lightness contrast (Lc). **Fix** changes the foreground's lightness, keeping its hue
-and chroma, to the nearest color that reaches AA or AAA, and writes it in the same notation; one undo reverts it. To
-check any two colors, put a caret on each (or select both) and use _Chromabox | Check Contrast_.
+and chroma, to the nearest color that reaches AA or AAA, and writes it in the same notation; one undo reverts it.
 
-The **Chromabox** tool window lists the colors of the current file, the open files, the whole project or any scope:
-each color once, with how often it's used and the formats it's written in, sorted by usage, hue or lightness. The
-project and other scopes use an index of the project's files, so they're quick, and colors show up as they're found.
-For very large projects, clear _Index project colors_ under _Palette_ in settings to skip indexing; the current and
-open files still work. Colors written differently, like
-`#FF0000`, `rgb(255, 0, 0)` and `red`, are one entry, and gradient stops count too. Right-click a color to find its
-usages, copy it as hex, `rgb()`, `hsl()`, `oklch()`, Compose or SwiftUI, or replace it everywhere: each occurrence is
-rewritten in its own notation, and one undo reverts them all. Double-click a color to go to it.
+To check any two colors, put a caret on each (or select both) and use _Chromabox | Check Contrast_ in the editor's
+context menu.
 
-Colors that look nearly the same are grouped under the most used one, with how far each is from it (CIEDE2000; under 1
-is barely visible). Set how close they must be under _Palette_ in settings, 2 by default, or clear _Group similar_ to
-list every color on its own. _Merge Group Into…_ picks one of the group's colors, or any other, and shows every change
-by file before writing it; each occurrence keeps its notation, and one undo reverts the merge. Read-only files and text
-that changed after the preview are left as they are and reported.
+![The contrast popup for a failing pair, with fixes for AA and AAA](docs/screenshots/contrast.png)
 
-_Export_ in the tool window's bar saves the listed colors, in the order they're listed, as:
+## The Chromabox tool window
 
-- **JSON**: each color's hex, RGB, alpha, uses and formats.
-- **CSS custom properties**: `--color-ff0000: #ff0000;` on `:root`.
-- **GIMP palette** (`.gpl`), which Inkscape, Krita and others read too. It has no alpha; each color's name keeps its full hex.
-- **Markdown table**: color, uses and formats; the Markdown preview shows a swatch before each color.
+The **Chromabox** tool window, on the right, lists the colors of the current file, the open files, the whole project
+or any scope: each color once, with how often it's used and the formats it's written in, sorted by usage, hue or
+lightness. Colors written differently, like `#FF0000`, `rgb(255, 0, 0)` and `red`, are one entry, and gradient stops
+count too.
 
-The Markdown preview shows a swatch before each color too, in prose, tables, inline code and code fences, in Swatch
+- **Find usages**, **copy as** hex, `rgb()`, `hsl()`, `oklch()`, Compose or SwiftUI, or **replace everywhere**:
+  right-click a color. Replacing rewrites each occurrence in its own notation, and one undo reverts them all.
+  Double-click a color to go to it.
+- **Near-duplicates**: colors that look nearly the same are grouped under the most used one, with how far each is from
+  it (CIEDE2000; under 1 is barely visible). Set how close they must be under _Palette_ in settings, 2 by default, or
+  clear _Group similar_ to list every color on its own.
+- **Merge Group Into…** picks one of the group's colors, or any other, and shows every change by file before writing
+  it. Each occurrence keeps its notation, and one undo reverts the merge. Read-only files and text that changed after
+  the preview are left as they are and reported.
+- **Export** saves the listed colors, in the order they're listed, as JSON (hex, RGB, alpha, uses and formats), CSS
+  custom properties (`--color-ff0000: #ff0000;` on `:root`), a GIMP palette (`.gpl`, which Inkscape, Krita and others
+  read too; it has no alpha, so each color's name keeps its full hex), or a Markdown table.
+
+![Merging near-duplicate blues across three files](docs/screenshots/merge.png)
+
+The project and custom scopes use an index of the project's files, so they're quick, and colors show up as they're
+found. For very large projects, clear _Index project colors_ under _Palette_ in settings to skip indexing; the current
+and open files still work.
+
+## Markdown preview
+
+The Markdown preview shows a swatch before each color too, in prose, tables, inline code and code fences, in the Swatch
 only and Swatch and hex modes. Colors are found the same way as in the editor, so the format settings apply. Preview
 swatches can't be clicked; turn them off under _Markdown preview_ in settings.
 
-To see colors as people with a color vision deficiency do, use _Chromabox | Simulate Color Vision_: protanopia,
-deuteranopia, tritanopia (Machado et al. 2009, at full severity) or achromatopsia. Swatches, gradients and gutter
-icons are drawn as they'd look, and contrast badges show the ratio of the simulated colors, marked with the
-simulation (`3.2:1 AA Large · protan`); the text doesn't change. The status bar shows the simulation while it's on;
-click it to switch. A fix in the contrast popup then reaches the level both with and without the simulation. The
-simulation ends when the IDE closes, unless _Keep the simulation after restarting the IDE_ is on in settings.
+![A Markdown file and its preview, both with swatches](docs/screenshots/markdown-preview.png)
 
-Each format can be turned on or off in _Settings | Tools | Chromabox | Formats_. Short hex forms (`#RGB`, `#RGBA`) can
-be turned off if hashtags like `#bad` or `#cafe` show up as colors, and float tuples can be limited to chosen file
-types. Colors the IDE already shows a swatch for, such as AWT colors in Java, don't get a second one. CSS-like file
-types (CSS, SCSS, Sass, Less, Stylus, PostCSS) are skipped by default; the list is editable in settings. Files larger
-than 2 million characters aren't scanned.
+## Color vision
 
-## Plugin structure
+To see colors as people with a color vision deficiency do, use _View | Chromabox | Simulate Color Vision_:
+protanopia, deuteranopia, tritanopia (Machado et al. 2009, at full severity) or achromatopsia.
 
-A generated project contains the following content structure:
+- Swatches, gradients, gutter icons and the tool window's colors are drawn as they'd look; the text doesn't change.
+- Contrast badges show the ratio of the simulated colors, marked with the simulation (`3.2:1 AA Large · protan`). A
+  fix in the contrast popup then reaches the level both with and without the simulation.
+- The status bar shows the simulation while it's on; click it to switch.
+- The simulation ends when the IDE closes, unless _Keep the simulation after restarting the IDE_ is on in settings.
 
-```
-.
-├── .run/                   Predefined Run/Debug Configurations
-├── gradle
-│   ├── wrapper/            Gradle Wrapper
-│   ├── libs.versions.toml  Version catalog
-├── src                     Plugin sources
-│   └── main
-│       ├── kotlin/         Kotlin production sources
-│       └── resources/      Plugin resources
-│           ├── META-INF/   Plugin configuration file and logo
-│           └── messages/   Message bundles
-├── .gitignore              Git ignoring rules
-├── build.gradle.kts        Gradle build configuration
-├── gradle.properties       Gradle configuration properties
-├── gradlew                 *nix Gradle Wrapper script
-├── gradlew.bat             Windows Gradle Wrapper script
-├── README.md               This file
-└── settings.gradle.kts     Gradle project settings
-```
+![Simulating deuteranopia](docs/screenshots/color-vision.png)
 
-In addition to the configuration files, the most crucial part is the `src` directory, which contains our implementation
-and the manifest for our plugin – [plugin.xml][file:plugin.xml].
+## Settings
 
-> [!NOTE]
-> To use Java in your plugin, create the `/src/main/java` directory.
+_Settings | Tools | Chromabox_ has the display mode, each format on its own, contrast badges, the palette, the Markdown
+preview and the simulation. Changes apply to open editors right away.
 
-The plugin logo is placed in `src/main/resources/META-INF/pluginIcon.svg`.
-See [Plugin Logo][docs:logo] for more information and logo requirements.
+- Short hex forms (`#RGB`, `#RGBA`) can be turned off if hashtags like `#bad` or `#cafe` show up as colors.
+- Float tuples can be limited to chosen file types.
+- The list of skipped file types is editable.
 
-## Build script
+![The Chromabox settings page](docs/screenshots/settings.png)
 
-The [build.gradle.kts][file:build.gradle.kts] is the core of the project definition.
-It applies three Gradle plugins:
+## Building from source
 
-| Plugin                            | Description                                                                      |
-|-----------------------------------|----------------------------------------------------------------------------------|
-| `org.jetbrains.kotlin.jvm`        | Adds Kotlin support                                                              |
-| `org.jetbrains.changelog`         | Simplifies patching the [CHANGELOG.md][file:CHANGELOG.md] file                   |
-| `org.jetbrains.intellij.platform` | The [IntelliJ Platform Gradle Plugin][docs:intellij-platform-gradle-plugin-docs] |
+Chromabox is built with Gradle and the [IntelliJ Platform Gradle Plugin][docs:intellij-platform-gradle-plugin].
 
-The `intellijPlatform` dependencies block selects the IDE to compile against:
+| Command | What it does |
+|---|---|
+| `./gradlew buildPlugin` | Builds `build/distributions/chromabox-<version>.zip`, to install from disk |
+| `./gradlew runIde` | Starts an IDE with the plugin |
+| `./gradlew check` | Runs the tests, and the scan benchmark in its own JVM: a 2-million-character file in under 150 ms |
+| `./gradlew verifyPlugin` | Checks compatibility with the IDE versions JetBrains recommends |
 
-```kotlin
-intellijIdea("2026.2.4")
-```
+The screenshots above are taken from the demo project in `docs/screenshots/demo`. Start
+`./gradlew runIdeForScreenshots`, wait for the IDE window, then run `python3 docs/screenshots/capture/scenes.py`; the
+IDE is driven through the Robot Server plugin, so leave it alone meanwhile. The banner is drawn by `docs/Banner.java`:
+`java docs/Banner.java docs/chromabox-banner.png`.
 
-See [Target Versions][docs:target-version] for more information.
-
-The `intellijPlatform` dependencies block also contains a dependency on the platform testing framework:
-
-```kotlin
-testFramework(TestFrameworkType.Platform)
-```
-
-See [Testing][docs:testing] for more information
-
-## Plugin configuration file
-
-The plugin configuration file is a [plugin.xml][file:plugin.xml] file located in the `src/main/resources/META-INF`
-directory.
-It provides general information about the plugin, its dependencies, extensions, and listeners.
-
-You can read more about this file in the [Plugin Configuration File][docs:plugin.xml] section of our documentation.
-
-### Plugin ID and name
-
-Generated plugin ID and name may require adjustment.
-
-These values are generated based on _Group ID_ and _Artifact ID_ provided in the IDE Plugin wizard.
-It is recommended to review `<id>` and `<name>` elements in the plugin.xml file, and adjust them if needed.
-
-Please note that Gradle properties `rootProject.name` and `project.group` don't need to match the `<id>` and `<name>`
-elements.
-There is no IntelliJ Platform-related reason they should as they serve different functions.
-
-## Predefined Run/Debug configurations
-
-Within the default project structure, there is a `.run` directory provided containing predefined *Run/Debug
-configurations* that expose corresponding Gradle tasks:
-
-| Configuration name  | Description                                                                                                                                                                           |
-|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Run IDE with Plugin | Runs [`:runIde`][docs:intellij-platform-gradle-plugin-runIde] IntelliJ Platform Gradle Plugin task. Use the *Debug* icon for plugin debugging.                                        |
-| Run Tests           | Runs [`:check`][gradle:lifecycle-tasks] Gradle task.                                                                                                                                  |
-| Run Verifications   | Runs [`:verifyPlugin`][docs:intellij-platform-gradle-plugin-verifyPlugin] IntelliJ Platform Gradle Plugin task to check the plugin compatibility against the specified IntelliJ IDEs. |
-
-> [!NOTE]
-> You can find the logs from the running task in the `idea.log` tab.
-
-## Publishing the plugin
-
-> [!TIP]
-> Make sure to follow all guidelines listed in [Publishing a Plugin][docs:publishing] to follow all recommended and
-required steps.
-
-Releasing a plugin to [JetBrains Marketplace](https://plugins.jetbrains.com) is a straightforward operation that uses
-the `publishPlugin` Gradle task provided by
-the [intellij-platform-gradle-plugin][docs:intellij-platform-gradle-plugin-docs].
-
-You can also upload the plugin to the [JetBrains Plugin Repository](https://plugins.jetbrains.com/plugin/upload)
-manually via UI.
-
-## Useful links
-
-- [IntelliJ Platform SDK Plugin SDK][docs]
-- [IntelliJ Platform Gradle Plugin Documentation][docs:intellij-platform-gradle-plugin-docs]
-- [IntelliJ Platform Explorer][jb:ipe]
-- [JetBrains Marketplace Quality Guidelines][jb:quality-guidelines]
-- [IntelliJ Platform UI Guidelines][jb:ui-guidelines]
-- [JetBrains Marketplace Paid Plugins][jb:paid-plugins]
-- [IntelliJ SDK Code Samples][gh:code-samples]
-
-[docs]: https://plugins.jetbrains.com/docs/intellij
-[docs:plugin.xml]: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html?from=IJPluginReadmeFile
-[docs:publishing]: https://plugins.jetbrains.com/docs/intellij/publishing-plugin.html?from=IJPluginReadmeFile
-[docs:intellij-platform-gradle-plugin-docs]: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html?from=IJPluginReadmeFile
-[docs:intellij-platform-gradle-plugin-runIde]: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-tasks.html?from=IJPluginReadmeFile#runIde
-[docs:intellij-platform-gradle-plugin-verifyPlugin]: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-tasks.html?from=IJPluginReadmeFile#verifyPlugin
-[docs:logo]: https://plugins.jetbrains.com/docs/intellij/plugin-icon-file.html?from=IJPluginReadmeFile
-[docs:target-version]: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html?from=IJPluginReadmeFile#target-versions
-[docs:testing]: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html?from=IJPluginReadmeFile#testing
-
-[file:build.gradle.kts]: ./build.gradle.kts
-[file:CHANGELOG.md]: ./CHANGELOG.md
-[file:gradle.properties]: ./gradle.properties
-[file:plugin.xml]: ./src/main/resources/META-INF/plugin.xml
-
-[gh:code-samples]: https://github.com/JetBrains/intellij-sdk-code-samples
-
-[gradle:lifecycle-tasks]: https://docs.gradle.org/current/userguide/java_plugin.html#lifecycle_tasks
-
-[jb:github]: https://github.com/JetBrains/.github/blob/main/profile/README.md
-[jb:forum]: https://platform.jetbrains.com/
-[jb:quality-guidelines]: https://plugins.jetbrains.com/docs/marketplace/quality-guidelines.html
-[jb:paid-plugins]: https://plugins.jetbrains.com/docs/marketplace/paid-plugins-marketplace.html
-[jb:ipe]: https://jb.gg/ipe
-[jb:ui-guidelines]: https://jetbrains.github.io/ui
+[docs:intellij-platform-gradle-plugin]: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
