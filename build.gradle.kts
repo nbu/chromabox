@@ -1,10 +1,20 @@
+import org.jetbrains.changelog.Changelog
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.intellij.platform.gradle.argumentProviders.IntelliJPlatformArgumentProvider
+import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
     id("org.jetbrains.changelog")
     id("org.jetbrains.intellij.platform")
+}
+
+kotlin {
+    compilerOptions {
+        // Interface default methods stay in the interfaces. Otherwise every class gets a copy of each, and the plugin
+        // verifier counts them as overrides of the platform's deprecated and experimental API.
+        jvmDefault = JvmDefaultMode.NO_COMPATIBILITY
+    }
 }
 
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
@@ -22,6 +32,56 @@ dependencies {
         // CSS in Markdown code fences, which the IDE shows swatches for itself.
         testBundledPlugin("com.intellij.css")
         testFramework(TestFrameworkType.Plugin.Java)
+    }
+}
+
+intellijPlatform {
+    pluginConfiguration {
+        // The version's CHANGELOG section is the Marketplace's "What's new".
+        val changelog = project.changelog
+        changeNotes = providers.gradleProperty("version").map { version ->
+            with(changelog) {
+                renderItem((getOrNull(version) ?: getUnreleased()).withHeader(false).withEmptySections(false), Changelog.OutputType.HTML)
+            }
+        }
+        ideaVersion {
+            // 2026.2, the IDE it's built against; no upper bound, as the Marketplace recommends.
+            sinceBuild = "262"
+        }
+    }
+    pluginVerification {
+        ides {
+            recommended()
+        }
+    }
+}
+
+// Screenshots for the README and the Marketplace (docs/screenshots): an IDE that opens a copy of the demo project, with
+// the Robot Server plugin, which runs scripts in it over HTTP. The copy is outside this repository, so the IDE doesn't
+// show its Git branch.
+val screenshotDemo = File(System.getProperty("java.io.tmpdir"), "lumen-ui")
+val copyScreenshotDemo = tasks.register<Sync>("copyScreenshotDemo") {
+    from("docs/screenshots/demo") { exclude(".idea") }
+    into(screenshotDemo)
+    preserve { include(".idea/**") }
+}
+intellijPlatformTesting.runIde.register("runIdeForScreenshots") {
+    task {
+        dependsOn(copyScreenshotDemo)
+        jvmArgumentProviders += CommandLineArgumentProvider {
+            listOf(
+                "-Drobot-server.port=8082",
+                "-Didea.trust.all.projects=true",
+                "-Dide.show.tips.on.startup.default.value=false",
+                "-Djb.privacy.policy.text=<!--999.999-->",
+                "-Djb.consents.confirmation.enabled=false",
+                "-Dide.mac.message.dialogs.as.sheets=false",
+            )
+        }
+        args(screenshotDemo.absolutePath)
+    }
+    plugins {
+        robotServerPlugin()
     }
 }
 

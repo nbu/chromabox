@@ -1,0 +1,24 @@
+# Lumen UI design tokens
+brand:
+  primary: "#2563eb"
+  primary-hover: "#1d4ed8"
+  accent: oklch(70% 0.19 330)
+  success: rgb(22, 163, 74)
+  warning: hsl(38 92% 50%)
+  danger: "#dc2626"
+
+badge:
+  foreground: "#f59e0b"
+  background: "#fbbf24"
+
+button:
+  fg: "#ffffff"
+  bg: "#2563eb"
+
+surface:
+  background: "#0f172a"
+  card: "#1e293b"
+  border: rgb(51 65 85)
+
+hero: linear-gradient(135deg, #2563eb, oklch(70% 0.19 330) 60%, #f59e0b)
+sunset: radial-gradient(circle, #fde68a, #f97316, #9d174d)

@@ -6,17 +6,19 @@ import com.bnsoft.chromabox.color.ChromaColor
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.CollectionComboBoxModel
 import com.intellij.ui.ColorChooserService
 import com.intellij.ui.ColoredTreeCellRenderer
-import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.dsl.listCellRenderer.listCellRenderer
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.tree.TreeUtil
@@ -50,10 +52,9 @@ class MergeDialog(private val project: Project, group: PaletteGroup) : DialogWra
 
     init {
         title = ChromaboxBundle.message("palette.merge.title")
-        targetBox.renderer = SimpleListCellRenderer.create { label, color, _ ->
-            if (color == null) return@create
-            label.icon = ColorSwatchRenderer.of(color)
-            label.text = Palette.hex(color)
+        targetBox.renderer = listCellRenderer {
+            icon(ColorSwatchRenderer.of(value))
+            text(Palette.hex(value))
         }
         targetBox.addActionListener { update() }
         tree.isRootVisible = false
@@ -64,8 +65,8 @@ class MergeDialog(private val project: Project, group: PaletteGroup) : DialogWra
 
     internal fun update() {
         val color = target
-        plan = ReadAction.compute<PaletteActions.Plan, RuntimeException> { PaletteActions.plan(project, files, hexes, color) }
-        tree.model = MergePreview.model(plan)
+        plan = ReadAction.computeBlocking<PaletteActions.Plan, RuntimeException> { PaletteActions.plan(project, files, hexes, color) }
+        tree.model = MergePreview.model(plan, project)
         TreeUtil.expandAll(tree)
         val fileCount = plan.changes.map { it.file }.distinct().size
         val lines = listOfNotNull(
@@ -92,21 +93,25 @@ class MergeDialog(private val project: Project, group: PaletteGroup) : DialogWra
             scrollCell(tree).align(Align.FILL)
         }.resizableRow()
         row { cell(summary) }
-    }.apply { preferredSize = JBUI.size(560, 400) }
+    }.apply { preferredSize = JBUI.size(760, 420) }
 
     override fun getPreferredFocusedComponent(): JComponent = targetBox
 }
 
 /** The changes of a merge as a tree: a node per file, with a node per change under it. */
 object MergePreview {
-    class FileNode(val file: VirtualFile, val count: Int)
+    /** [file] in [location], its folder relative to the project when it's in it. */
+    class FileNode(val file: VirtualFile, val location: String, val count: Int)
 
     class ChangeNode(val change: PaletteActions.Change, val line: Int)
 
-    fun model(plan: PaletteActions.Plan): DefaultTreeModel {
+    fun model(plan: PaletteActions.Plan, project: Project): DefaultTreeModel {
         val root = DefaultMutableTreeNode()
+        val projectDir = project.guessProjectDir()
         for ((file, changes) in plan.changes.groupBy { it.file }) {
-            val fileNode = DefaultMutableTreeNode(FileNode(file, changes.size))
+            val parent = file.parent
+            val location = parent?.let { dir -> projectDir?.let { VfsUtilCore.getRelativePath(dir, it) } ?: dir.presentableUrl }.orEmpty()
+            val fileNode = DefaultMutableTreeNode(FileNode(file, location, changes.size))
             val document = FileDocumentManager.getInstance().getDocument(file)
             for (change in changes.sortedBy { it.range.startOffset }) {
                 val line = document?.getLineNumber(change.range.startOffset)?.plus(1) ?: 0
@@ -123,7 +128,7 @@ object MergePreview {
                 is FileNode -> {
                     icon = node.file.fileType.icon
                     append(node.file.name, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
-                    append("  " + node.file.parent?.presentableUrl.orEmpty(), SimpleTextAttributes.GRAYED_ATTRIBUTES)
+                    if (node.location.isNotEmpty()) append("  " + node.location, SimpleTextAttributes.GRAYED_ATTRIBUTES)
                     append("  (${node.count})", SimpleTextAttributes.GRAYED_ATTRIBUTES)
                 }
                 is ChangeNode -> {

@@ -6,9 +6,11 @@
 
     <description><![CDATA[
         <img src="https://raw.githubusercontent.com/nbu/chromabox/main/docs/chromabox-banner.png" width="1280" height="800" alt="Chromabox"/><br>
-        Shows color swatches next to colors in any text file, such as Markdown, CSV, JSON, YAML or source code.<br>
-        Click a swatch to pick a new color; it's written back in the notation the color was written in.<br>
-        Formats, each with its own setting:
+        Color swatches next to colors in any text file, such as Markdown, YAML, JSON, CSV or source code. Click a swatch
+        to pick a new color; it's written back in the notation it was written in, and one undo reverts it.
+
+        <h3>Formats</h3>
+        Each with its own setting:
         <ul>
           <li>Hex: <code>#f00</code>, <code>#1E90FF</code>, <code>#1E90FF80</code></li>
           <li>CSS functions: <code>rgb(255, 0, 0)</code>, <code>rgb(255 0 0 / 50%)</code>, <code>hsl()</code>, <code>hwb()</code></li>
@@ -16,25 +18,30 @@
           <li>Integer colors: <code>0xFFAABBCC</code></li>
           <li>Language constructors: Compose and Flutter <code>Color(0xFF112233)</code>, AWT <code>new Color(1, 2, 3)</code>,
             UIKit and SwiftUI <code>UIColor(red: 0.1, green: 0.2, blue: 0.3, alpha: 1)</code></li>
-          <li>Named colors (off by default): <code>tomato</code>, <code>rebeccapurple</code></li>
-          <li>Float tuples (off by default): <code>[0.1, 0.2, 0.3]</code></li>
-          <li>CSS gradients: <code>linear-gradient(to right, #fff, #000)</code>, <code>radial-gradient()</code>,
-            <code>conic-gradient()</code>, as one wide swatch; click it to edit a stop</li>
-          <li>Color sequences (off by default): a strip after three or more colors in a row, like <code>#264653, #2a9d8f, #e9c46a</code></li>
+          <li>CSS gradients, as one wide swatch; click it to edit a stop</li>
+          <li>Off by default: named colors (<code>tomato</code>), float tuples (<code>[0.1, 0.2, 0.3]</code>), and a strip
+            after three or more colors in a row</li>
         </ul>
-        Contrast badges show the WCAG ratio of colors that belong together, such as <code>fg</code> and
-        <code>bg</code> keys, or two colors on one line: <code>4.6:1 AA</code>. Hover a badge for details and a
-        <b>Fix</b> that adjusts the foreground's lightness until it passes.<br>
-        The <b>Chromabox</b> tool window lists the colors of a file, the open files or the whole project with usage counts: find usages,
-        copy as another notation, or replace a color everywhere, each occurrence in its own notation. Near-duplicate colors are
-        grouped, and a group can be merged into one color after a preview. Export the palette as JSON, CSS custom properties,
-        a GIMP palette or a Markdown table.<br>
-        The Markdown preview shows swatches too.<br>
-        <em>Simulate Color Vision</em> draws swatches and contrast badges as people with protanopia, deuteranopia,
-        tritanopia or achromatopsia see them.<br>
-        Display modes: swatch only, swatch with the color text, gutter icons, or off (<em>View | Chromabox</em> or
-        <em>Settings | Tools | Chromabox</em>).<br>
-        Colors the IDE already shows a swatch for are skipped, and so are CSS-like files by default.
+
+        <h3>Contrast</h3>
+        Colors that belong together, such as <code>fg</code> and <code>bg</code> keys or two colors on one line, get a badge
+        with their WCAG ratio: <code>4.6:1 AA</code>. Hover it for details, APCA if you like, and a <b>Fix</b> that adjusts
+        the foreground's lightness until it passes.
+
+        <h3>The Chromabox tool window</h3>
+        Every color in a file, the open files, the project or any scope, with usage counts. Find usages, copy as another
+        notation, or replace a color everywhere, each occurrence in its own notation. Colors that look nearly the same are
+        grouped, and a group can be merged into one color after a preview. Export the palette as JSON, CSS custom
+        properties, a GIMP palette or a Markdown table.
+
+        <h3>And</h3>
+        <ul>
+          <li>Swatches in the Markdown preview.</li>
+          <li><em>Simulate Color Vision</em>: swatches and contrast badges as people with protanopia, deuteranopia,
+            tritanopia or achromatopsia see them.</li>
+          <li>Display modes: swatch only, swatch with the color text, gutter icons, or off (<em>View | Chromabox</em>).</li>
+        </ul>
+        Colors the IDE already shows a swatch for are skipped, and so are CSS-like files by default. No network access.
         ]]></description>
 
     <depends>com.intellij.modules.platform</depends>

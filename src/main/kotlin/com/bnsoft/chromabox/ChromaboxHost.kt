@@ -14,11 +14,11 @@ import com.intellij.openapi.fileTypes.FileType
 
 /** Connects the lens engine to Chromabox settings, lenses and lifetime. */
 object ChromaboxHost : LensHost {
-    private val LENS_EP = ExtensionPointName<Lens<*>>("com.bnsoft.chromabox.lens")
+    internal val LENS_EP = ExtensionPointName<Lens<*>>("com.bnsoft.chromabox.lens")
 
     private val settings get() = ChromaboxSettings.getInstance()
 
-    override val parentDisposable: Disposable get() = ChromaboxLifetime.getInstance()
+    override val parentDisposable: Disposable get() = ChromaboxLifetime.getInstance().controllers
 
     override val presentation: LensPresentation
         get() = when (settings.mode) {
@@ -53,7 +53,6 @@ object ChromaboxHost : LensHost {
     override fun subscribe(disposable: Disposable, listener: () -> Unit) {
         ApplicationManager.getApplication().messageBus.connect(disposable)
             .subscribe(ChromaboxSettingsListener.TOPIC, ChromaboxSettingsListener(listener))
-        LENS_EP.addChangeListener(listener, disposable)
     }
 
     override val maxDocumentLength get() = ChromaboxSettings.MAX_DOCUMENT_LENGTH

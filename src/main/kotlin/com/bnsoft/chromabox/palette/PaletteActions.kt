@@ -113,7 +113,7 @@ object PaletteActions {
 
     /** Lists the occurrences in the Find tool window. */
     fun showUsages(project: Project, entry: PaletteEntry) {
-        val usages = ReadAction.compute<Array<Usage>, RuntimeException> {
+        val usages = ReadAction.computeBlocking<Array<Usage>, RuntimeException> {
             val psiManager = PsiManager.getInstance(project)
             entry.occurrences.mapNotNull { occurrence ->
                 val file = occurrence.file.takeIf { it.isValid }?.let(psiManager::findFile) ?: return@mapNotNull null

@@ -64,16 +64,17 @@ import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.DoubleClickListener
 import com.intellij.ui.PopupHandler
 import com.intellij.ui.ScrollPaneFactory
-import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
-import com.intellij.ui.components.panels.HorizontalLayout
 import com.intellij.ui.content.ContentFactory
+import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import com.intellij.util.Alarm
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.WrapLayout
+import java.awt.FlowLayout
 import java.awt.datatransfer.StringSelection
 import java.awt.event.MouseEvent
 import java.io.IOException
@@ -149,8 +150,8 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         }
 
     init {
-        scopeBox.renderer = SimpleListCellRenderer.create("") { ChromaboxBundle.message("palette.scope.${it.name}") }
-        sortBox.renderer = SimpleListCellRenderer.create("") { ChromaboxBundle.message("palette.sort.${it.name}") }
+        scopeBox.renderer = textListCellRenderer { ChromaboxBundle.message("palette.scope.${it.name}") }
+        sortBox.renderer = textListCellRenderer { ChromaboxBundle.message("palette.sort.${it.name}") }
         scopeBox.addActionListener {
             customScope.isVisible = scope == PaletteScope.CUSTOM
             scheduleRefresh(0)
@@ -160,7 +161,8 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
         Disposer.register(this, customScope)
         sortBox.addActionListener { show(groups) }
         groupBox.addItemListener { show(groups) }
-        val bar = JPanel(HorizontalLayout(JBUI.scale(6))).apply {
+        // Wraps in a narrow tool window, so nothing is cut off.
+        val bar = JPanel(WrapLayout(FlowLayout.LEFT, JBUI.scale(6), JBUI.scale(2))).apply {
             border = JBUI.Borders.empty(4, 8)
             add(scopeBox)
             add(customScope)

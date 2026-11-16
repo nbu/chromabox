@@ -36,14 +36,14 @@ public class Banner {
         g.drawString("Chromabox", 196, 136);
         g.setColor(new Color(0xB8C0D9));
         g.setFont(sans.deriveFont(28f));
-        g.drawString("See hex colors in any file. Click a swatch to change it.", 82, 222);
+        g.drawString("See and edit colors in any file. Click a swatch to change it.", 82, 222);
 
-        // Mode chips.
+        // Feature chips.
         int cx = 82;
-        for (String chip : new String[]{"Swatch only", "Swatch + hex", "Off"}) cx = chip(g, cx, 252, chip) + 14;
+        for (String chip : new String[]{"Swatches", "Contrast", "Palette", "Color vision"}) cx = chip(g, cx, 252, chip) + 14;
         g.setColor(new Color(0x7E87A6));
         g.setFont(sans.deriveFont(20f));
-        g.drawString("Markdown · CSV · plain text · any file type", cx + 10, 283);
+        g.drawString("hex · rgb() · oklch() · Compose · SwiftUI", cx + 10, 283);
 
         editor(g, 82, 340, 1116, 400);
 

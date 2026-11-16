@@ -231,7 +231,7 @@ class PaletteTest : BasePlatformTestCase() {
         val plan = runReadAction { PaletteActions.plan(project, listOf(first, second), setOf("#808080", "#838383"), ChromaColor.fromRgb255(128, 128, 128)) }
         // "gray" is #808080 already, and so are two others: they aren't changes.
         assertEquals(listOf("a.md: rgb(131, 131, 131) -> rgb(128, 128, 128)", "b.md: #838383 -> #808080"), plan.changes.map { "${it.file.name}: ${it.old} -> ${it.new}" })
-        val tree = MergePreview.model(plan)
+        val tree = MergePreview.model(plan, project)
         val root = tree.root as javax.swing.tree.DefaultMutableTreeNode
         assertEquals(2, root.childCount)
         assertEquals(1, ((root.firstChild as javax.swing.tree.DefaultMutableTreeNode).firstChild as javax.swing.tree.DefaultMutableTreeNode).let { (it.userObject as MergePreview.ChangeNode).line })
