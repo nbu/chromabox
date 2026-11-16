@@ -8,7 +8,7 @@
         <img src="https://raw.githubusercontent.com/nbu/chromabox/main/docs/chromabox-banner.png" width="480" height="300" alt="Chromabox"/><br>
         Color swatches next to colors in any text file, such as Markdown, YAML, JSON, CSV or source code. Click a swatch
         to pick a new color; it's written back in the notation it was written in, and one undo reverts it.
-        <br><img src="https://raw.githubusercontent.com/nbu/chromabox/main/docs/screenshots/editor.png" width="480" height="300" alt="Swatches, contrast badges and the Chromabox tool window"/>
+        <br><img src="https://raw.githubusercontent.com/nbu/chromabox/main/docs/screenshots/description/editor.png" width="480" height="540" alt="Swatches, contrast badges and the Chromabox tool window"/>
 
         <h3>Formats</h3>
         Each with its own setting:
@@ -28,14 +28,14 @@
         Colors that belong together, such as <code>fg</code> and <code>bg</code> keys or two colors on one line, get a badge
         with their WCAG ratio: <code>4.6:1 AA</code>. Hover it for details, APCA if you like, and a <b>Fix</b> that adjusts
         the foreground's lightness until it passes.
-        <br><img src="https://raw.githubusercontent.com/nbu/chromabox/main/docs/screenshots/contrast.png" width="480" height="300" alt="The contrast popup"/>
+        <br><img src="https://raw.githubusercontent.com/nbu/chromabox/main/docs/screenshots/description/contrast.png" width="480" height="335" alt="The contrast popup"/>
 
         <h3>The Chromabox tool window</h3>
         Every color in a file, the open files, the project or any scope, with usage counts. Find usages, copy as another
         notation, or replace a color everywhere, each occurrence in its own notation. Colors that look nearly the same are
         grouped, and a group can be merged into one color after a preview. Export the palette as JSON, CSS custom
         properties, a GIMP palette or a Markdown table.
-        <br><img src="https://raw.githubusercontent.com/nbu/chromabox/main/docs/screenshots/merge.png" width="480" height="300" alt="Merging near-duplicate colors"/>
+        <br><img src="https://raw.githubusercontent.com/nbu/chromabox/main/docs/screenshots/description/merge.png" width="480" height="241" alt="Merging near-duplicate colors"/>
 
         <h3>And</h3>
         <ul>
