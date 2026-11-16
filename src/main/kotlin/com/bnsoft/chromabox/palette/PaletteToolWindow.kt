@@ -6,9 +6,14 @@ import com.bnsoft.chromabox.ChromaboxSettingsListener
 import com.bnsoft.chromabox.ColorSwatchRenderer
 import com.bnsoft.chromabox.HexColorParser
 import com.bnsoft.chromabox.color.ChromaColor
+import com.intellij.icons.AllIcons
 import com.intellij.ide.util.scopeChooser.ScopeChooserCombo
+import com.intellij.notification.NotificationAction
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
+import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -20,9 +25,12 @@ import com.intellij.openapi.actionSystem.UiDataProvider
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
+import com.intellij.openapi.fileChooser.FileChooserFactory
+import com.intellij.openapi.fileChooser.FileSaverDescriptor
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent
@@ -34,6 +42,7 @@ import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.SimpleToolWindowPanel
 import com.intellij.openapi.util.Disposer
@@ -65,6 +74,7 @@ import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.JBUI
 import java.awt.datatransfer.StringSelection
 import java.awt.event.MouseEvent
+import java.io.IOException
 import java.util.Locale
 import javax.swing.JList
 import javax.swing.JPanel
@@ -156,6 +166,11 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
             add(sortBox)
             add(groupBox)
         }
+        val exportToolbar = ActionManager.getInstance().createActionToolbar("ChromaboxPaletteExport", DefaultActionGroup(ExportGroup()), true)
+        exportToolbar.targetComponent = this
+        exportToolbar.component.border = JBUI.Borders.empty()
+        exportToolbar.component.isOpaque = false
+        bar.add(exportToolbar.component)
         toolbar = bar
 
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
@@ -336,6 +351,57 @@ class PalettePanel(private val project: Project, private val isToolWindowVisible
     // Test hooks.
     internal val entries: List<PaletteEntry> get() = model.items.map { it.entry }
     internal val rows: List<PaletteRow> get() = model.items
+
+    /** The listed colors as [format], in the order they're listed, each on its own. */
+    internal fun exportText(format: PaletteExport): String {
+        val name = ChromaboxBundle.message("palette.export.name", project.name, ChromaboxBundle.message("palette.scope.${scope.name}"))
+        return format.export(entries, name)
+    }
+
+    /** Asks where to save the listed colors as [format], and saves them (C-03.7). */
+    private fun export(format: PaletteExport) {
+        val count = entries.size
+        val descriptor = FileSaverDescriptor(
+            ChromaboxBundle.message("palette.export.title"),
+            ChromaboxBundle.message("palette.export.description", count),
+            format.extension,
+        )
+        val wrapper = FileChooserFactory.getInstance().createSaveFileDialog(descriptor, project)
+            .save(project.guessProjectDir(), "${project.name}-colors.${format.extension}") ?: return
+        val text = exportText(format)
+        val notifications = NotificationGroupManager.getInstance().getNotificationGroup(PaletteActions.NOTIFICATIONS)
+        try {
+            val file = WriteAction.compute<VirtualFile?, IOException> {
+                wrapper.getVirtualFile(true)?.also { it.setBinaryContent(text.toByteArray(Charsets.UTF_8)) }
+            } ?: throw IOException(wrapper.file.path)
+            notifications.createNotification(ChromaboxBundle.message("palette.export.done", count, file.presentableName), NotificationType.INFORMATION)
+                .addAction(NotificationAction.createSimpleExpiring(ChromaboxBundle.message("palette.export.open")) {
+                    OpenFileDescriptor(project, file).navigate(true)
+                })
+                .notify(project)
+        } catch (e: IOException) {
+            notifications.createNotification(ChromaboxBundle.message("palette.export.failed", e.message.orEmpty()), NotificationType.ERROR)
+                .notify(project)
+        }
+    }
+
+    /** One item per export format; disabled while the list is empty. */
+    private inner class ExportGroup : DefaultActionGroup(ChromaboxBundle.message("palette.export"), true), DumbAware {
+        init {
+            templatePresentation.icon = AllIcons.ToolbarDecorator.Export
+            for (format in PaletteExport.entries) {
+                add(object : DumbAwareAction(ChromaboxBundle.message("palette.export.${format.name}")) {
+                    override fun actionPerformed(e: AnActionEvent) = export(format)
+                })
+            }
+        }
+
+        override fun getActionUpdateThread() = ActionUpdateThread.EDT
+
+        override fun update(e: AnActionEvent) {
+            e.presentation.isEnabled = !model.isEmpty
+        }
+    }
 
     /** One place: go there. Several: list them. */
     private fun open(entry: PaletteEntry) {
