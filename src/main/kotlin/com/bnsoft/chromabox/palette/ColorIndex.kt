@@ -46,10 +46,10 @@ class ColorIndex : FileBasedIndexExtension<String, List<IndexedColor>>() {
 
     override fun getValueExternalizer(): DataExternalizer<List<IndexedColor>> = Externalizer
 
-    // Project content only: library and SDK sources aren't the project's palette.
+    // Project content only: library and SDK sources aren't the project's palette. Nothing while it's turned off.
     override fun getInputFilter(): FileBasedIndex.InputFilter = object : FileBasedIndex.ProjectSpecificInputFilter {
         override fun acceptInput(file: IndexedFile): Boolean {
-            if (file.fileType.isBinary) return false
+            if (!ChromaboxSettings.getInstance().state.indexProjectColors || file.fileType.isBinary) return false
             val project = file.project ?: return false
             return ProjectFileIndex.getInstance(project).isInContent(file.file)
         }
@@ -96,6 +96,9 @@ class ColorIndex : FileBasedIndexExtension<String, List<IndexedColor>>() {
     companion object {
         val NAME: ID<String, List<IndexedColor>> = ID.create("chromabox.colors")
 
+        /** Whether the index is turned on; while it's off, it's empty. */
+        val enabled: Boolean get() = ChromaboxSettings.getInstance().state.indexProjectColors
+
         /**
          * The settings the index depends on. When they change, the index is rebuilt; they're compared with the ones it
          * was built with on every change and when a project opens, which also covers changes made in another IDE run.
@@ -104,7 +107,7 @@ class ColorIndex : FileBasedIndexExtension<String, List<IndexedColor>>() {
             val settings = ChromaboxSettings.getInstance()
             val state = settings.state
             val lenses = ColorFormat.entries.filter { it.lensBacked && settings.isLensEnabled(it.lensId) }.joinToString(",") { it.name }
-            return listOf(lenses, state.shortForms, state.intOrder, state.floatTupleFileTypes, state.excludedFileTypes).joinToString("|")
+            return listOf(state.indexProjectColors, lenses, state.shortForms, state.intOrder, state.floatTupleFileTypes, state.excludedFileTypes).joinToString("|")
         }
 
         fun rebuildIfSettingsChanged() {
